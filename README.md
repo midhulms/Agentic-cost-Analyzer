@@ -4,6 +4,21 @@
 **Live demo:** _add your Render URL here once deployed, e.g. https://agentic-cost-router.onrender.com/dashboard_
 **Note:** the free hosting tier sleeps after 15 min idle and resets the SQLite file on redeploy/spin-down — send a few prompts after the first load to repopulate the charts. Fine for a portfolio demo, not meant for persistent production data.
 
+
+## Preview  
+
+![App view]([Screenshot from 2026-07-03 05-13-49.png](https://github.com/midhulms/Agentic-cost-Analyzer/blob/main/Screenshot%20from%202026-07-03%2005-13-49.png)
+![Dashboard Preview](https://github.com/midhulms/Agentic-cost-Analyzer/blob/main/Screenshot%20from%202026-07-03%2005-14-14.png)
+![Dashboard Preview](https://github.com/midhulms/Agentic-cost-Analyzer/blob/main/Screenshot%20from%202026-07-03%2005-14-33.png)
+![Dashboard Preview](https://github.com/midhulms/Agentic-cost-Analyzer/blob/main/Screenshot%20from%202026-07-03%2005-24-02.png)
+![Dashboard Preview](https://github.com/midhulms/Agentic-cost-Analyzer/blob/main/Screenshot%20from%202026-07-03%2005-24-31.png)
+
+)
+
+
+---
+
+
 A small, honest version of what "Bud"-style Hybrid AI routing does: send most
 requests to a cheap/open-weight model, escalate to a frontier model only when
 a prompt actually looks like it needs one, and track how much that saves.
