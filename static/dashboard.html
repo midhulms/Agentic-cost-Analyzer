@@ -1,0 +1,653 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Agent Dispatch — Cost Router</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.3/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#0B0E14;
+    --panel:#12161F;
+    --panel-alt:#171C27;
+    --border:#232938;
+    --text:#EDEFF3;
+    --muted:#8891A3;
+    --dim:#5B6478;
+
+    --teal:#4FD8C4;    /* sparrow / cheap tier */
+    --amber:#F2A93B;   /* compiler / code */
+    --indigo:#6C8CF2;  /* atlas / planner */
+    --violet:#B389F2;  /* prism / analyst */
+    --rose:#F2708D;    /* voyager / deep-dive */
+    --lime:#A3D65C;    /* echo / summary */
+
+    --good:#4FD8C4;
+    --warn:#F2A93B;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(1100px 600px at 12% -10%, rgba(108,140,242,0.10), transparent 60%),
+      radial-gradient(900px 500px at 100% 0%, rgba(242,169,59,0.08), transparent 55%),
+      var(--bg);
+    color:var(--text);
+    font-family:'Inter',system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+  }
+  .mono{font-family:'IBM Plex Mono',monospace;}
+  .wrap{max-width:1180px;margin:0 auto;padding:28px 20px 80px;}
+
+  /* ---------- header ---------- */
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:26px;}
+  .brand{display:flex;align-items:center;gap:12px;}
+  .brand-mark{width:38px;height:38px;border-radius:9px;background:linear-gradient(155deg,var(--indigo),var(--violet));display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .brand-mark svg{width:20px;height:20px;stroke:#0B0E14;}
+  h1{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:26px;letter-spacing:0.2px;margin:0;}
+  .sub{color:var(--muted);font-size:13.5px;margin-top:3px;}
+  .live{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);border:1px solid var(--border);padding:6px 12px;border-radius:100px;background:var(--panel);}
+  .live .dot{width:7px;height:7px;border-radius:50%;background:var(--teal);box-shadow:0 0 0 0 rgba(79,216,196,.6);animation:pulse 2s infinite;}
+  @keyframes pulse{
+    0%{box-shadow:0 0 0 0 rgba(79,216,196,.55);}
+    70%{box-shadow:0 0 0 7px rgba(79,216,196,0);}
+    100%{box-shadow:0 0 0 0 rgba(79,216,196,0);}
+  }
+
+  #apiBar{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;}
+  #apiBar input{flex:1;max-width:340px;background:var(--panel);border:1px solid var(--border);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:12.5px;padding:8px 10px;border-radius:8px;}
+  #apiBar button{background:var(--panel-alt);border:1px solid var(--border);color:var(--muted);font-size:12.5px;padding:8px 12px;border-radius:8px;cursor:pointer;}
+  #apiBar button:hover{color:var(--text);border-color:#3a4256;}
+  #apiStatus{font-size:12px;color:var(--dim);}
+
+  #keyBar{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;}
+  #keyBar input{width:230px;background:var(--panel);border:1px solid var(--border);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:12px;padding:7px 10px;border-radius:8px;}
+  #keyBar label{font-size:11px;color:var(--dim);}
+  #keyStatus{font-size:11px;color:var(--dim);}
+  .live-badge{display:inline-block;padding:1px 7px;border-radius:5px;font-size:10px;margin-left:6px;background:rgba(79,216,196,0.15);color:var(--teal);}
+  .mock-badge{display:inline-block;padding:1px 7px;border-radius:5px;font-size:10px;margin-left:6px;background:rgba(139,148,163,0.15);color:var(--muted);}
+
+  /* ---------- hero stats ---------- */
+  .stat-row{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:32px;}
+  @media(max-width:900px){.stat-row{grid-template-columns:repeat(2,1fr);}}
+  .stat{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px 16px 14px;}
+  .stat .label{font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:var(--dim);margin-bottom:8px;}
+  .stat .value{font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:700;}
+  .stat .foot{font-size:11.5px;color:var(--muted);margin-top:4px;}
+  .stat.accent{border-color:rgba(79,216,196,0.35);background:linear-gradient(180deg,rgba(79,216,196,0.07),transparent 60%),var(--panel);}
+  .stat.accent .value{color:var(--teal);}
+
+  section{margin-bottom:34px;}
+  .section-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:6px;}
+  .section-head h2{font-family:'Space Grotesk',sans-serif;font-size:16.5px;margin:0;letter-spacing:0.2px;}
+  .section-head p{color:var(--muted);font-size:12.5px;margin:0;}
+
+  /* ---------- agent roster ---------- */
+  .agent-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;}
+  @media(max-width:560px){.agent-grid{grid-template-columns:1fr;}}
+  .agent-card{background:var(--panel);border:1px solid var(--border);border-top:3px solid var(--c,var(--teal));border-radius:12px;padding:16px;position:relative;overflow:hidden;transition:transform .15s ease, border-color .15s ease;}
+  .agent-card:hover{transform:translateY(-2px);border-color:#333c52;}
+  .agent-card .icon{width:34px;height:34px;border-radius:9px;background:color-mix(in srgb, var(--c,var(--teal)) 16%, transparent);display:flex;align-items:center;justify-content:center;margin-bottom:12px;}
+  .agent-card .icon svg{width:18px;height:18px;stroke:var(--c,var(--teal));fill:none;}
+  .agent-card .name{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:16px;}
+  .agent-card .role{font-size:11px;color:var(--c,var(--teal));text-transform:uppercase;letter-spacing:.5px;margin-top:1px;}
+  .agent-card .tagline{color:var(--muted);font-size:12px;margin-top:8px;line-height:1.45;min-height:32px;}
+  .agent-card .metrics{display:flex;justify-content:space-between;margin-top:14px;padding-top:12px;border-top:1px dashed var(--border);}
+  .agent-card .metrics div{font-family:'IBM Plex Mono',monospace;}
+  .agent-card .metrics .m-label{font-size:9.5px;color:var(--dim);text-transform:uppercase;letter-spacing:.4px;}
+  .agent-card .metrics .m-value{font-size:13.5px;font-weight:600;margin-top:2px;}
+
+  /* ---------- dispatch console ---------- */
+  .console{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;}
+  @media(max-width:880px){.console{grid-template-columns:1fr;}}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:18px;}
+  textarea{width:100%;min-height:110px;background:var(--panel-alt);border:1px solid var(--border);color:var(--text);border-radius:10px;padding:12px;font-family:'Inter',sans-serif;font-size:13.5px;resize:vertical;}
+  textarea:focus{outline:none;border-color:#3a4a63;}
+  .controls{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;}
+  select{background:var(--panel-alt);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px 10px;font-size:12.5px;font-family:'Inter',sans-serif;}
+  .send-btn{margin-left:auto;background:var(--teal);color:#08201C;border:none;font-weight:600;font-size:13px;padding:9px 18px;border-radius:8px;cursor:pointer;transition:filter .15s;}
+  .send-btn:hover{filter:brightness(1.08);}
+  .send-btn:disabled{opacity:.5;cursor:default;}
+  .hint{font-size:11.5px;color:var(--dim);margin-top:10px;}
+
+  /* ---------- ticket ---------- */
+  .ticket{background:var(--panel-alt);border:1px solid var(--border);border-radius:12px;padding:0;font-family:'IBM Plex Mono',monospace;opacity:0;transform:translateY(8px);transition:opacity .3s ease, transform .3s ease;overflow:hidden;}
+  .ticket.show{opacity:1;transform:translateY(0);}
+  .ticket-head{padding:16px 18px;display:flex;align-items:center;gap:12px;border-bottom:1px dashed var(--border);}
+  .ticket-head .icon{width:32px;height:32px;border-radius:8px;background:color-mix(in srgb, var(--c,var(--teal)) 18%, transparent);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .ticket-head .icon svg{width:16px;height:16px;stroke:var(--c,var(--teal));fill:none;}
+  .ticket-head .who .name{font-family:'Space Grotesk',sans-serif;font-size:14.5px;font-weight:700;color:var(--text);}
+  .ticket-head .who .role{font-size:10.5px;color:var(--c,var(--teal));text-transform:uppercase;letter-spacing:.5px;}
+  .ticket-head .route-badge{margin-left:auto;font-size:10px;text-transform:uppercase;letter-spacing:.5px;padding:4px 9px;border-radius:100px;border:1px solid var(--border);color:var(--muted);}
+  .ticket-body{padding:16px 18px;}
+  .tresponse{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:12px 13px;margin-bottom:14px;}
+  .tresponse-label{font-family:'Inter',sans-serif;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--dim);margin-bottom:6px;}
+  .tresponse-text{font-family:'Inter',sans-serif;font-size:13px;line-height:1.55;color:var(--text);white-space:pre-wrap;max-height:220px;overflow-y:auto;}
+  .tline{display:flex;justify-content:space-between;font-size:12.5px;padding:4px 0;color:var(--muted);}
+  .tline b{color:var(--text);font-weight:600;}
+  .tdivider{border-top:1px dashed var(--border);margin:10px 0;}
+  .ttotal{display:flex;justify-content:space-between;font-size:15px;padding-top:6px;color:var(--text);font-weight:700;}
+  .ttotal .val{color:var(--c,var(--teal));}
+  .texplain{font-family:'Inter',sans-serif;font-size:12px;color:var(--muted);line-height:1.55;margin-top:12px;padding-top:12px;border-top:1px dashed var(--border);}
+  .texplain b{color:var(--text);}
+  .tfoot{padding:12px 18px;background:rgba(255,255,255,0.015);font-size:10.5px;color:var(--dim);display:flex;justify-content:space-between;}
+  .method-badge{display:inline-block;padding:1px 7px;border-radius:5px;background:rgba(79,216,196,0.12);color:var(--teal);font-size:10px;margin-left:6px;}
+  .method-badge.approx{background:rgba(242,169,59,0.14);color:var(--amber);}
+
+  /* ---------- charts row ---------- */
+  .chart-row{display:grid;grid-template-columns:1.3fr 1fr;gap:16px;}
+  @media(max-width:880px){.chart-row{grid-template-columns:1fr;}}
+  .chart-card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:18px;height:290px;}
+  .chart-card h3{font-family:'Space Grotesk',sans-serif;font-size:13.5px;margin:0 0 12px;color:var(--text);}
+  .chart-inner{height:220px;position:relative;}
+
+  /* ---------- log ---------- */
+  .log{background:var(--panel);border:1px solid var(--border);border-radius:14px;overflow:hidden;}
+  .log-row{display:grid;grid-template-columns:70px 1fr 100px 90px 90px 80px;gap:10px;align-items:center;padding:10px 16px;font-size:12px;border-bottom:1px solid var(--border);}
+  .log-row:last-child{border-bottom:none;}
+  .log-row.head{color:var(--dim);text-transform:uppercase;letter-spacing:.5px;font-size:10px;background:var(--panel-alt);}
+  .log-agent{display:flex;align-items:center;gap:8px;}
+  .log-agent .dot{width:8px;height:8px;border-radius:2px;background:var(--c,var(--teal));flex-shrink:0;}
+  .prompt-preview{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .route-tag{font-family:'IBM Plex Mono',monospace;font-size:10.5px;padding:2px 7px;border-radius:5px;width:fit-content;}
+  .route-tag.cheap{background:rgba(79,216,196,0.12);color:var(--teal);}
+  .route-tag.frontier{background:rgba(242,169,59,0.12);color:var(--amber);}
+  .cost-cell,.tok-cell{font-family:'IBM Plex Mono',monospace;}
+  .empty{padding:30px;text-align:center;color:var(--dim);font-size:13px;}
+
+  .provider-check{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted);margin-right:14px;cursor:pointer;}
+  .provider-check input{accent-color:var(--teal);cursor:pointer;}
+
+  footer{text-align:center;color:var(--dim);font-size:11.5px;margin-top:40px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <div class="brand-mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h6l2-7 4 14 2-7h2"/></svg>
+      </div>
+      <div>
+        <h1>Agent Dispatch</h1>
+        <div class="sub">Every prompt, routed to an agent, priced to the token.</div>
+      </div>
+    </div>
+    <div class="live"><span class="dot"></span> LIVE FEED</div>
+  </header>
+
+  <div id="apiBar">
+    <input id="apiInput" type="text" value="http://localhost:8000" spellcheck="false" />
+    <button id="apiConnect">Connect</button>
+    <span id="apiStatus" class="mono">not connected</span>
+  </div>
+
+  <div id="keyBar">
+    <label for="anthropicKey">Anthropic key</label>
+    <input id="anthropicKey" type="password" placeholder="sk-ant-…" spellcheck="false" autocomplete="off" />
+    <label for="openaiKey">OpenAI key</label>
+    <input id="openaiKey" type="password" placeholder="sk-…" spellcheck="false" autocomplete="off" />
+    <span id="keyStatus" class="mono">Keys stay in this browser tab and are only sent with a dispatch to run that one request live — never stored server-side or in the log.</span>
+  </div>
+
+  <div class="stat-row" id="statRow"></div>
+
+  <section>
+    <div class="section-head">
+      <h2>Agent roster</h2>
+      <p>Who's on duty, and what they've spent</p>
+    </div>
+    <div class="agent-grid" id="agentGrid"></div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>Dispatch a prompt</h2>
+      <p>Watch the router pick an agent, a model, and print the bill</p>
+    </div>
+    <div class="console">
+      <div class="card">
+        <textarea id="promptInput" placeholder="Ask something quick, or something that needs a plan, code, or a hard comparison…"></textarea>
+        <div class="controls">
+          <select id="forceRoute"><option value="auto">Auto route</option><option value="cheap">Force cheap</option><option value="frontier">Force frontier</option></select>
+          <select id="forceModel"><option value="">Default model for route</option></select>
+          <select id="forceAgent"><option value="">Auto-pick agent</option></select>
+          <button class="send-btn" id="sendBtn">Dispatch →</button>
+        </div>
+        <div class="hint">Token counts below use tiktoken's cl100k_base tokenizer — a free, open, offline encoder (same family GPT-3.5/4 use) — so counts are exact, not guessed, even without any paid API call.</div>
+      </div>
+      <div id="ticketHost">
+        <div class="card" style="display:flex;align-items:center;justify-content:center;min-height:180px;color:var(--dim);font-size:13px;">
+          Dispatch a prompt to see the ticket
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>Spend, broken down</h2>
+      <p>Where the cost is actually going</p>
+    </div>
+    <div class="chart-row">
+      <div class="chart-card">
+        <h3>Cost by agent</h3>
+        <div class="chart-inner"><canvas id="agentCostChart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Cheap vs. frontier split</h3>
+        <div class="chart-inner"><canvas id="routeSplitChart"></canvas></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>Cost by model</h2>
+      <p>Reference pricing pulled from the router's own model catalog</p>
+    </div>
+    <div class="chart-card" style="height:260px;">
+      <div class="chart-inner" style="height:200px;"><canvas id="modelCostChart"></canvas></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>Consumption over time</h2>
+      <p>Daily or monthly token usage and cost, per model — GPT, Gemini, and other cloud/open-weight models</p>
+    </div>
+    <div class="controls" style="margin-bottom:14px;">
+      <select id="consGranularity">
+        <option value="daily">Daily (last 30 days)</option>
+        <option value="monthly">Monthly (last 12 months)</option>
+      </select>
+      <label class="provider-check"><input type="checkbox" class="provider-toggle" value="gpt" checked> GPT models</label>
+      <label class="provider-check"><input type="checkbox" class="provider-toggle" value="gemini" checked> Gemini</label>
+      <label class="provider-check"><input type="checkbox" class="provider-toggle" value="cloud" checked> Other cloud / open-weight</label>
+    </div>
+    <div class="chart-row">
+      <div class="chart-card">
+        <h3>Token consumption</h3>
+        <div class="chart-inner"><canvas id="consumptionTokensChart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Cost (USD)</h3>
+        <div class="chart-inner"><canvas id="consumptionCostChart"></canvas></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>Recent dispatches</h2>
+      <p>Last requests, newest first</p>
+    </div>
+    <div class="log" id="logHost"></div>
+  </section>
+
+  <footer>Agent Dispatch — a humanized view over the Agentic Cost Router API.</footer>
+</div>
+
+<script>
+const ICONS = {
+  code: '<path d="M9 8l-4 4 4 4"/><path d="M15 8l4 4-4 4"/>',
+  route: '<circle cx="6" cy="6" r="2.2"/><circle cx="18" cy="18" r="2.2"/><path d="M8 6h6a4 4 0 0 1 4 4v0a4 4 0 0 1-4 4H8"/>',
+  layers: '<path d="M12 3l8 4.5-8 4.5-8-4.5L12 3z"/><path d="M4 12.5l8 4.5 8-4.5"/><path d="M4 16.5l8 4.5 8-4.5"/>',
+  compass: '<circle cx="12" cy="12" r="9"/><path d="M15 9l-2 6-6 2 2-6 6-2z"/>',
+  zap: '<path d="M12 3L5 14h5l-1 7 8-11h-5l1-7z" stroke-linejoin="round"/>',
+  echo: '<path d="M12 5v14"/><path d="M8 8v8"/><path d="M4 10v4"/><path d="M16 8v8"/><path d="M20 10v4"/>',
+};
+const ACCENT = { teal:'--teal', amber:'--amber', cyan:'--indigo', violet:'--violet', rose:'--rose', lime:'--lime' };
+
+function iconSvg(key){
+  return `<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[key]||ICONS.zap}</svg>`;
+}
+function accentVar(name){ return `var(${ACCENT[name]||'--teal'})`; }
+function fmtUsd(n){ return '$' + Number(n).toFixed(6); }
+function fmtUsd4(n){ return '$' + Number(n).toFixed(4); }
+function esc(s){ const d=document.createElement('div'); d.textContent = String(s==null?'':s); return d.innerHTML; }
+
+let API_BASE = document.getElementById('apiInput').value.replace(/\/$/,'');
+let agentsCatalog = [];
+let modelsCatalog = [];
+let charts = {};
+
+async function jget(path){
+  const r = await fetch(API_BASE + path);
+  if(!r.ok) throw new Error(path + ' -> ' + r.status);
+  return r.json();
+}
+
+function renderStats(s){
+  const items = [
+    { label:'Total requests', value:s.total_requests, foot:`${s.cheap_requests} cheap · ${s.frontier_requests} frontier` },
+    { label:'Total tokens (exact)', value:s.total_tokens.toLocaleString(), foot:`${s.total_input_tokens.toLocaleString()} in · ${s.total_output_tokens.toLocaleString()} out` },
+    { label:'Total spend', value:fmtUsd4(s.total_cost_usd), foot:`vs ${fmtUsd4(s.baseline_cost_usd)} if always-frontier` },
+    { label:'Saved vs. always-frontier', value:fmtUsd4(s.estimated_savings_usd), foot:`${s.estimated_savings_pct}% cheaper`, accent:true },
+    { label:'Avg latency', value: Math.round(s.avg_latency_ms) + ' ms', foot:'per dispatch' },
+  ];
+  document.getElementById('statRow').innerHTML = items.map(i => `
+    <div class="stat ${i.accent?'accent':''}">
+      <div class="label">${i.label}</div>
+      <div class="value mono">${i.value}</div>
+      <div class="foot">${i.foot}</div>
+    </div>`).join('');
+}
+
+function renderAgents(agents, agentStats){
+  const statMap = {};
+  agentStats.forEach(a => statMap[a.agent_id] = a);
+  document.getElementById('agentGrid').innerHTML = agents.map(a => {
+    const st = statMap[a.id] || {requests:0,total_tokens:0,total_cost_usd:0,avg_cost_usd:0};
+    return `
+    <div class="agent-card" style="--c:${accentVar(a.accent)}">
+      <div class="icon">${iconSvg(a.icon)}</div>
+      <div class="name">${a.name}</div>
+      <div class="role">${a.role}</div>
+      <div class="tagline">${a.tagline}</div>
+      <div class="metrics">
+        <div><div class="m-label">Requests</div><div class="m-value">${st.requests}</div></div>
+        <div><div class="m-label">Tokens</div><div class="m-value">${st.total_tokens.toLocaleString()}</div></div>
+        <div><div class="m-label">Spend</div><div class="m-value">${fmtUsd(st.total_cost_usd)}</div></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function methodLabel(method){
+  if(method === 'provider-api-exact') return {text:'exact · billed usage', cls:''};
+  if(method === 'tiktoken-cl100k') return {text:'exact · tiktoken (free)', cls:''};
+  return {text:'approx · fallback', cls:'approx'};
+}
+
+function renderTicket(r, agentMeta){
+  const c = accentVar(agentMeta.accent);
+  const m = methodLabel(r.token_count_method);
+  const host = document.getElementById('ticketHost');
+  host.innerHTML = `
+    <div class="ticket show" style="--c:${c}">
+      <div class="ticket-head">
+        <div class="icon">${iconSvg(agentMeta.icon)}</div>
+        <div class="who"><div class="name">${r.agent_name}</div><div class="role">${r.agent_role}</div></div>
+        <div class="route-badge">${esc(r.route)} · ${esc(r.model_used)}</div>
+        <div class="${r.is_live_call ? 'live-badge' : 'mock-badge'}">${r.is_live_call ? 'LIVE' : 'MOCK'}</div>
+      </div>
+      <div class="ticket-body">
+        <div class="tresponse"><div class="tresponse-label">Response</div><div class="tresponse-text">${esc(r.response_text)}</div></div>
+        <div class="tline"><span>Complexity score</span><b>${r.complexity_score}</b></div>
+        <div class="tline"><span>Latency (exact, measured)</span><b>${r.latency_ms} ms</b></div>
+        <div class="tline"><span>Input tokens <span class="method-badge ${m.cls}">${m.text}</span></span><b>${r.input_tokens}</b></div>
+        <div class="tline"><span>Output tokens</span><b>${r.output_tokens}</b></div>
+        <div class="tline"><span>Total tokens</span><b>${r.total_tokens}</b></div>
+        <div class="tdivider"></div>
+        <div class="tline"><span>Input cost</span><b>${fmtUsd(r.input_cost_usd)}</b></div>
+        <div class="tline"><span>Output cost</span><b>${fmtUsd(r.output_cost_usd)}</b></div>
+        <div class="tdivider"></div>
+        <div class="ttotal"><span>Total</span><span class="val">${fmtUsd(r.estimated_cost_usd)}</span></div>
+        <div class="texplain"><b>Why this agent/route:</b> ${esc(r.routing_reason)}</div>
+        <div class="texplain" style="border-top:none;margin-top:8px;padding-top:0;"><b>Why this cost:</b> ${esc(r.cost_explanation)}</div>
+      </div>
+      <div class="tfoot"><span>latency ${r.latency_ms} ms</span><span>dispatched just now</span></div>
+    </div>`;
+}
+
+function renderCharts(agentStats, modelStats, stats){
+  Object.values(charts).forEach(c => c && c.destroy());
+
+  const agentCtx = document.getElementById('agentCostChart');
+  charts.agent = new Chart(agentCtx, {
+    type:'bar',
+    data:{
+      labels: agentStats.map(a=>a.agent_name),
+      datasets:[{
+        data: agentStats.map(a=>a.total_cost_usd),
+        backgroundColor: agentStats.map(a => {
+          const meta = agentsCatalog.find(x=>x.id===a.agent_id);
+          return getComputedStyle(document.documentElement).getPropertyValue(ACCENT[meta?meta.accent:'teal']).trim() || '#4FD8C4';
+        }),
+        borderRadius:6,
+        maxBarThickness:34,
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}, tooltip:{callbacks:{label:(ctx)=>'$'+ctx.parsed.y.toFixed(6)}}},
+      scales:{
+        x:{ticks:{color:'#8891A3',font:{family:'IBM Plex Mono',size:11}}, grid:{display:false}},
+        y:{ticks:{color:'#8891A3',font:{family:'IBM Plex Mono',size:10}}, grid:{color:'#232938'}}
+      }
+    }
+  });
+
+  const routeCtx = document.getElementById('routeSplitChart');
+  charts.route = new Chart(routeCtx, {
+    type:'doughnut',
+    data:{
+      labels:['cheap','frontier'],
+      datasets:[{ data:[stats.cheap_requests, stats.frontier_requests], backgroundColor:['#4FD8C4','#F2A93B'], borderWidth:0 }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false, cutout:'68%',
+      plugins:{legend:{position:'bottom', labels:{color:'#8891A3', font:{family:'Inter', size:11}}}}
+    }
+  });
+
+  const modelCtx = document.getElementById('modelCostChart');
+  charts.model = new Chart(modelCtx, {
+    type:'bar',
+    data:{
+      labels: modelStats.map(m=>m.model_used),
+      datasets:[{
+        data: modelStats.map(m=>m.total_cost_usd),
+        backgroundColor:'#6C8CF2', borderRadius:6, maxBarThickness:30,
+      }]
+    },
+    options:{
+      indexAxis:'y', responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}, tooltip:{callbacks:{label:(ctx)=>'$'+ctx.parsed.x.toFixed(6)}}},
+      scales:{
+        x:{ticks:{color:'#8891A3',font:{family:'IBM Plex Mono',size:10}}, grid:{color:'#232938'}},
+        y:{ticks:{color:'#8891A3',font:{family:'IBM Plex Mono',size:11}}, grid:{display:false}}
+      }
+    }
+  });
+}
+
+function renderLog(rows){
+  const host = document.getElementById('logHost');
+  if(!rows.length){ host.innerHTML = '<div class="empty">No dispatches yet — send a prompt above.</div>'; return; }
+  const head = `<div class="log-row head"><span>Time</span><span>Agent / Prompt</span><span>Model</span><span>Route</span><span>Tokens</span><span>Cost</span></div>`;
+  const rowsHtml = rows.map(r => {
+    const meta = agentsCatalog.find(a=>a.id===r.agent_id) || {accent:'teal'};
+    const t = new Date(r.ts*1000);
+    const time = t.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+    return `<div class="log-row">
+      <span class="mono" style="color:var(--dim)">${time}</span>
+      <span class="log-agent" style="--c:${accentVar(meta.accent)}"><span class="dot"></span><span>${esc(r.agent_name)} <span class="prompt-preview" style="display:inline">— ${esc(r.prompt_preview)}</span></span></span>
+      <span class="mono" style="color:var(--muted)">${esc(r.model_used)}</span>
+      <span class="route-tag ${r.route}">${r.route}</span>
+      <span class="tok-cell">${(r.input_tokens+r.output_tokens).toLocaleString()}</span>
+      <span class="cost-cell">${fmtUsd(r.estimated_cost_usd)}</span>
+    </div>`;
+  }).join('');
+  host.innerHTML = head + rowsHtml;
+}
+
+// ---------- consumption over time (daily/monthly, per model, GPT/Gemini/cloud) ----------
+const CONSUMPTION_PALETTE = ['#4FD8C4','#F2A93B','#6C8CF2','#B389F2','#F2708D','#A3D65C','#5EC8F2','#F2D34F','#E88BF2','#8CE87A'];
+
+async function refreshConsumption(){
+  try{
+    const granularity = document.getElementById('consGranularity').value;
+    const selectedProviders = Array.from(document.querySelectorAll('.provider-toggle:checked')).map(el => el.value);
+    const path = granularity === 'daily' ? '/v1/consumption/daily?days=30' : '/v1/consumption/monthly?months=12';
+    const rows = await jget(path);
+    renderConsumptionCharts(rows, selectedProviders);
+  }catch(e){
+    console.error(e);
+  }
+}
+
+function renderConsumptionCharts(rows, selectedProviders){
+  const providerOf = {};
+  modelsCatalog.forEach(m => { providerOf[m.name] = m.provider; });
+
+  const filtered = rows.filter(r => selectedProviders.includes(providerOf[r.model_used]));
+  const periods = [...new Set(filtered.map(r => r.period))].sort();
+  const models = [...new Set(filtered.map(r => r.model_used))];
+
+  const byKey = {};
+  filtered.forEach(r => { byKey[r.model_used + '|' + r.period] = r; });
+
+  const buildDatasets = (field) => models.map((m, i) => ({
+    label: m,
+    data: periods.map(p => (byKey[m + '|' + p] || {})[field] ?? null),
+    borderColor: CONSUMPTION_PALETTE[i % CONSUMPTION_PALETTE.length],
+    backgroundColor: CONSUMPTION_PALETTE[i % CONSUMPTION_PALETTE.length],
+    tension: 0.3,
+    spanGaps: true,
+  }));
+
+  if(charts.consTokens) charts.consTokens.destroy();
+  if(charts.consCost) charts.consCost.destroy();
+
+  const baseOptions = {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { position: 'bottom', labels: { color: '#8891A3', font: { family: 'Inter', size: 10.5 }, boxWidth: 10 } } },
+    scales: {
+      x: { ticks: { color: '#8891A3', font: { family: 'IBM Plex Mono', size: 10 } }, grid: { display: false } },
+      y: { ticks: { color: '#8891A3', font: { family: 'IBM Plex Mono', size: 10 } }, grid: { color: '#232938' } },
+    },
+  };
+
+  charts.consTokens = new Chart(document.getElementById('consumptionTokensChart'), {
+    type: 'line',
+    data: { labels: periods, datasets: buildDatasets('total_tokens') },
+    options: baseOptions,
+  });
+
+  charts.consCost = new Chart(document.getElementById('consumptionCostChart'), {
+    type: 'line',
+    data: { labels: periods, datasets: buildDatasets('total_cost_usd') },
+    options: {
+      ...baseOptions,
+      plugins: {
+        ...baseOptions.plugins,
+        tooltip: { callbacks: { label: (ctx) => ctx.dataset.label + ': $' + Number(ctx.parsed.y).toFixed(6) } },
+      },
+    },
+  });
+}
+
+document.getElementById('consGranularity').addEventListener('change', refreshConsumption);
+document.querySelectorAll('.provider-toggle').forEach(el => el.addEventListener('change', refreshConsumption));
+
+async function refreshAll(){
+  document.getElementById('apiStatus').textContent = 'loading…';
+
+  // Each endpoint is fetched independently so one failing call (e.g. a
+  // fresh DB with no /v1/recent rows yet, or a stale /v1/stats/models)
+  // doesn't blank out the sections that succeeded. Promise.all would
+  // reject the *entire* batch on a single failure -- allSettled won't.
+  const [statsR, agentsR, agentStatsR, modelStatsR, recentR, modelsR] = await Promise.allSettled([
+    jget('/v1/stats'), jget('/v1/agents'), jget('/v1/stats/agents'),
+    jget('/v1/stats/models'), jget('/v1/recent?limit=20'), jget('/v1/models'),
+  ]);
+
+  const failures = [];
+  const val = (r, label, fallback) => {
+    if(r.status === 'fulfilled') return r.value;
+    failures.push(label);
+    console.error(label, r.reason);
+    return fallback;
+  };
+
+  const stats = val(statsR, '/v1/stats', {
+    total_requests:0, cheap_requests:0, frontier_requests:0, total_cost_usd:0,
+    baseline_cost_usd:0, estimated_savings_usd:0, estimated_savings_pct:0,
+    avg_latency_ms:0, total_input_tokens:0, total_output_tokens:0, total_tokens:0,
+  });
+  const agents = val(agentsR, '/v1/agents', []);
+  const agentStats = val(agentStatsR, '/v1/stats/agents', []);
+  const modelStats = val(modelStatsR, '/v1/stats/models', []);
+  const recent = val(recentR, '/v1/recent', []);
+  const models = val(modelsR, '/v1/models', []);
+
+  agentsCatalog = agents;
+  modelsCatalog = models;
+  renderStats(stats);
+  renderAgents(agents, agentStats);
+  renderCharts(agentStats, modelStats, stats);
+  renderLog(recent);
+  populateModelSelect(models);
+  populateAgentSelect(agents);
+
+  if(agentsR.status === 'fulfilled' && modelsR.status === 'fulfilled'){
+    try{ await refreshConsumption(); }catch(e){ failures.push('/v1/consumption'); console.error(e); }
+  }
+
+  if(failures.length){
+    document.getElementById('apiStatus').textContent = `connected, but ${failures.length} endpoint(s) failed — is the API running with a fresh DB? (${failures.join(', ')})`;
+  }else{
+    document.getElementById('apiStatus').textContent = 'connected · ' + API_BASE;
+  }
+}
+
+function populateModelSelect(models){
+  const sel = document.getElementById('forceModel');
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">Default model for route</option>' +
+    models.map(m => `<option value="${m.name}">${m.name} (${m.tier})</option>`).join('');
+  if(prev) sel.value = prev;
+}
+
+function populateAgentSelect(agents){
+  const sel = document.getElementById('forceAgent');
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">Auto-pick agent</option>' +
+    agents.map(a => `<option value="${a.id}">${a.name} — ${a.role}</option>`).join('');
+  if(prev) sel.value = prev;
+}
+
+document.getElementById('apiConnect').addEventListener('click', () => {
+  API_BASE = document.getElementById('apiInput').value.replace(/\/$/,'');
+  refreshAll();
+});
+
+document.getElementById('sendBtn').addEventListener('click', async () => {
+  const prompt = document.getElementById('promptInput').value.trim();
+  if(!prompt) return;
+  const btn = document.getElementById('sendBtn');
+  btn.disabled = true; btn.textContent = 'Dispatching…';
+  const payload = { prompt };
+  const fr = document.getElementById('forceRoute').value;
+  const fm = document.getElementById('forceModel').value;
+  const fa = document.getElementById('forceAgent').value;
+  const ak = document.getElementById('anthropicKey').value.trim();
+  const ok = document.getElementById('openaiKey').value.trim();
+  if(fr !== 'auto') payload.force_route = fr;
+  if(fm) payload.force_model = fm;
+  if(fa) payload.force_agent = fa;
+  if(ak) payload.anthropic_api_key = ak;
+  if(ok) payload.openai_api_key = ok;
+  try{
+    const r = await fetch(API_BASE + '/v1/route', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    const data = await r.json();
+    const meta = agentsCatalog.find(a=>a.id===data.agent_id) || {accent:'teal', icon:'zap'};
+    renderTicket(data, meta);
+    await refreshAll();
+  }catch(e){
+    console.error(e);
+  }finally{
+    btn.disabled = false; btn.textContent = 'Dispatch →';
+  }
+});
+
+refreshAll();
+</script>
+</body>
+</html>
