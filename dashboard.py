@@ -5,13 +5,17 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-for _key in ("ROUTER_API_BASE",):
-       if _key in st.secrets:
-           os.environ.setdefault(_key, st.secrets[_key])
-
-API_BASE = os.environ.get("ROUTER_API_BASE", "http://localhost:8000")
-
 st.set_page_config(page_title="Agentic Cost Router", layout="wide")
+
+import os
+from pathlib import Path
+
+_secrets_path = Path(__file__).parent / ".streamlit" / "secrets.toml"
+if _secrets_path.exists():
+    for _key in ("ROUTER_API_BASE",):
+        if _key in st.secrets:
+            os.environ.setdefault(_key, st.secrets[_key])
+API_BASE = os.environ.get("ROUTER_API_BASE", "http://localhost:8000")
 st.title("Agentic Cost Router")
 st.caption("Routes prompts by complexity, tracks cost saved vs. always using the frontier model.")
 st.info("A more visual, agent-focused view of this same data lives at **/dashboard** on the API "
