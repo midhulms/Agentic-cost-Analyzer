@@ -28,13 +28,13 @@ app = FastAPI(
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 if STATIC_DIR.exists():
-    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
-    app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+       app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+app.add_middleware(
+       CORSMiddleware,
+       allow_origins=["*"],
+       allow_methods=["*"],
+       allow_headers=["*"],
+   )
 @app.on_event("startup")
 def on_startup() -> None:
     init_db()
