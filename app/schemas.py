@@ -56,6 +56,28 @@ class RouteResponse(BaseModel):
     latency_ms: int
 
 
+class SignupRequest(BaseModel):
+    email: str = Field(..., min_length=3)
+    password: str = Field(..., min_length=6)
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class UserInfo(BaseModel):
+    id: int
+    email: str
+    free_uses_remaining: int
+    is_paid: bool
+
+
+class TokenResponse(BaseModel):
+    token: str
+    user: UserInfo
+
+
 class ModelInfo(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
 

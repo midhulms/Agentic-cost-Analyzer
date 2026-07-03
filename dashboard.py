@@ -7,7 +7,6 @@ import streamlit as st
 
 st.set_page_config(page_title="Agentic Cost Router", layout="wide")
 
-import os
 from pathlib import Path
 
 _secrets_path = Path(__file__).parent / ".streamlit" / "secrets.toml"
@@ -16,11 +15,94 @@ if _secrets_path.exists():
         if _key in st.secrets:
             os.environ.setdefault(_key, st.secrets[_key])
 API_BASE = os.environ.get("ROUTER_API_BASE", "http://localhost:8000")
+
 st.title("Agentic Cost Router")
 st.caption("Routes prompts by complexity, tracks cost saved vs. always using the frontier model.")
 st.info("A more visual, agent-focused view of this same data lives at **/dashboard** on the API "
         f"(e.g. {API_BASE}/dashboard) — cards per agent, a printed cost ticket per prompt, and charts.")
 
+# ---------------------------------------------------------------------------
+# Login / signup gate. POST /v1/route now requires a Bearer token (5 free
+# calls per account, then /v1/auth/upgrade is required) -- see app/auth.py.
+# Everything below this block is unreachable until st.session_state["token"]
+# is set, which happens on a successful login or signup.
+# ---------------------------------------------------------------------------
+if "token" not in st.session_state:
+    st.session_state["token"] = None
+    st.session_state["user"] = None
+
+def _auth_headers() -> dict:
+    token = st.session_state.get("token")
+    return {"Authorization": f"Bearer {token}"} if token else {}
+
+with st.sidebar:
+    st.subheader("Account")
+    if st.session_state["token"] is None:
+        tab_login, tab_signup = st.tabs(["Log in", "Sign up"])
+        with tab_login:
+            login_email = st.text_input("Email", key="login_email")
+            login_password = st.text_input("Password", type="password", key="login_password")
+            if st.button("Log in"):
+                try:
+                    resp = httpx.post(f"{API_BASE}/v1/auth/login",
+                                       json={"email": login_email, "password": login_password}, timeout=10)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        st.session_state["token"] = data["token"]
+                        st.session_state["user"] = data["user"]
+                        st.rerun()
+                    else:
+                        st.error(resp.json().get("detail", "Log in failed."))
+                except Exception as exc:
+                    st.error(f"Could not reach {API_BASE} ({exc}).")
+        with tab_signup:
+            signup_email = st.text_input("Email", key="signup_email")
+            signup_password = st.text_input("Password (min 6 chars)", type="password", key="signup_password")
+            if st.button("Create account"):
+                try:
+                    resp = httpx.post(f"{API_BASE}/v1/auth/signup",
+                                       json={"email": signup_email, "password": signup_password}, timeout=10)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        st.session_state["token"] = data["token"]
+                        st.session_state["user"] = data["user"]
+                        st.rerun()
+                    else:
+                        st.error(resp.json().get("detail", "Sign up failed."))
+                except Exception as exc:
+                    st.error(f"Could not reach {API_BASE} ({exc}).")
+    else:
+        user = st.session_state["user"]
+        st.markdown(f"**{user['email']}**")
+        if user["is_paid"]:
+            st.success("Unlimited plan ✅")
+        else:
+            st.metric("Free requests left", user["free_uses_remaining"])
+            if user["free_uses_remaining"] <= 0:
+                st.warning("Free limit reached.")
+            if st.button("Upgrade (demo — no real charge)"):
+                try:
+                    resp = httpx.post(f"{API_BASE}/v1/auth/upgrade", headers=_auth_headers(), timeout=10)
+                    if resp.status_code == 200:
+                        st.session_state["user"] = resp.json()
+                        st.rerun()
+                    else:
+                        st.error(resp.json().get("detail", "Upgrade failed."))
+                except Exception as exc:
+                    st.error(f"Could not reach {API_BASE} ({exc}).")
+        if st.button("Log out"):
+            st.session_state["token"] = None
+            st.session_state["user"] = None
+            st.rerun()
+
+if st.session_state["token"] is None:
+    st.info("Log in or create a free account in the sidebar to use the router (5 free requests, no card needed).")
+    st.stop()
+
+# ---------------------------------------------------------------------------
+# Stats / charts (read-only, no login required by the API itself, but we
+# keep them behind the gate above so the whole page has one consistent flow)
+# ---------------------------------------------------------------------------
 try:
     stats = httpx.get(f"{API_BASE}/v1/stats", timeout=5).json()
 except Exception as exc:
@@ -98,63 +180,95 @@ if selected_models:
 else:
     st.info("Select at least one model above to see its consumption trend.")
 
-st.subheader("Try a prompt")
-prompt = st.text_area("Prompt", placeholder="Ask something simple, or something that needs multi-step reasoning...")
+# ---------------------------------------------------------------------------
+# Dispatch a prompt -- now a dedicated two-column layout: controls on the
+# left, a persistent "Model Output" panel on the right. The result stays in
+# st.session_state["last_result"] so the output column keeps showing the
+# last response even as the rest of the page reruns (e.g. when you touch a
+# filter above), instead of only flashing on screen for one run.
+# ---------------------------------------------------------------------------
+st.subheader("Dispatch a prompt")
+left, right = st.columns([1, 1])
 
-col_a, col_b, col_c = st.columns(3)
-force = col_a.selectbox("Force route (optional)", ["auto", "cheap", "frontier"])
-model_choice = col_b.selectbox("Force model (optional)", ["default for route"] + [m["name"] for m in models])
-try:
-    agents_catalog = httpx.get(f"{API_BASE}/v1/agents", timeout=5).json()
-except Exception:
-    agents_catalog = []
-agent_choice = col_c.selectbox(
-    "Force agent (optional)", ["auto-pick"] + [a["id"] for a in agents_catalog],
-    format_func=lambda a: a if a == "auto-pick" else next((x["name"] for x in agents_catalog if x["id"] == a), a),
-)
+with left:
+    prompt = st.text_area("Prompt", placeholder="Ask something simple, or something that needs multi-step reasoning...")
 
-with st.expander("Run a real model (bring your own API key)"):
-    st.caption(
-        "Pick an OpenAI or Anthropic model above, paste the matching key here, and Send will call "
-        "that model live instead of returning a mock reply. Keys are only used for this request — "
-        "they are not saved to disk, not logged, and not stored in this browser session beyond the "
-        "current page load."
-    )
-    key_col1, key_col2 = st.columns(2)
-    anthropic_key = key_col1.text_input("Anthropic API key", type="password", placeholder="sk-ant-…")
-    openai_key = key_col2.text_input("OpenAI API key", type="password", placeholder="sk-…")
-
-if st.button("Send") and prompt.strip():
-    payload = {"prompt": prompt}
-    if force != "auto":
-        payload["force_route"] = force
-    if model_choice != "default for route":
-        payload["force_model"] = model_choice
-    if agent_choice != "auto-pick":
-        payload["force_agent"] = agent_choice
-    if anthropic_key:
-        payload["anthropic_api_key"] = anthropic_key
-    if openai_key:
-        payload["openai_api_key"] = openai_key
-
+    col_a, col_b, col_c = st.columns(3)
+    force = col_a.selectbox("Force route (optional)", ["auto", "cheap", "frontier"])
+    model_choice = col_b.selectbox("Force model (optional)", ["default for route"] + [m["name"] for m in models])
     try:
-        result = httpx.post(f"{API_BASE}/v1/route", json=payload, timeout=60).json()
-    except Exception as exc:
-        st.error(f"Could not reach {API_BASE}/v1/route ({exc}). Is the API running?")
-        result = None
+        agents_catalog = httpx.get(f"{API_BASE}/v1/agents", timeout=5).json()
+    except Exception:
+        agents_catalog = []
+    agent_choice = col_c.selectbox(
+        "Force agent (optional)", ["auto-pick"] + [a["id"] for a in agents_catalog],
+        format_func=lambda a: a if a == "auto-pick" else next((x["name"] for x in agents_catalog if x["id"] == a), a),
+    )
 
-    if result is not None:
+    with st.expander("Run a real model (bring your own API key)"):
+        st.caption(
+            "Pick an OpenAI or Anthropic model above, paste the matching key here, and Send will call "
+            "that model live instead of returning a mock reply. Keys are only used for this request — "
+            "they are not saved to disk, not logged, and not stored in this browser session beyond the "
+            "current page load."
+        )
+        key_col1, key_col2 = st.columns(2)
+        anthropic_key = key_col1.text_input("Anthropic API key", type="password", placeholder="sk-ant-…")
+        openai_key = key_col2.text_input("OpenAI API key", type="password", placeholder="sk-…")
+
+    send_clicked = st.button("Send", type="primary")
+
+    if send_clicked and prompt.strip():
+        payload = {"prompt": prompt}
+        if force != "auto":
+            payload["force_route"] = force
+        if model_choice != "default for route":
+            payload["force_model"] = model_choice
+        if agent_choice != "auto-pick":
+            payload["force_agent"] = agent_choice
+        if anthropic_key:
+            payload["anthropic_api_key"] = anthropic_key
+        if openai_key:
+            payload["openai_api_key"] = openai_key
+
+        try:
+            resp = httpx.post(f"{API_BASE}/v1/route", json=payload, headers=_auth_headers(), timeout=60)
+            if resp.status_code == 402:
+                st.error(resp.json().get("detail", "Free limit reached."))
+            elif resp.status_code == 401:
+                st.session_state["token"] = None
+                st.session_state["user"] = None
+                st.error("Session expired — log in again.")
+                st.rerun()
+            elif resp.status_code != 200:
+                st.error(f"API returned {resp.status_code}: {resp.text}")
+            else:
+                st.session_state["last_result"] = resp.json()
+                # Refresh the free-uses counter shown in the sidebar.
+                me_resp = httpx.get(f"{API_BASE}/v1/auth/me", headers=_auth_headers(), timeout=5)
+                if me_resp.status_code == 200:
+                    st.session_state["user"] = me_resp.json()
+        except Exception as exc:
+            st.error(f"Could not reach {API_BASE}/v1/route ({exc}). Is the API running?")
+
+with right:
+    st.markdown("#### Model Output")
+    result = st.session_state.get("last_result")
+    if result is None:
+        st.info("Dispatch a prompt on the left to see the agent's response, tokens, and cost here.")
+    else:
         live = result.get("is_live_call", False)
         badge = "🟢 LIVE" if live else "⚪ MOCK"
         st.markdown(
             f"**{badge}** &nbsp;|&nbsp; **Agent:** {result['agent_name']} ({result['agent_role']}) &nbsp;|&nbsp; "
             f"**Model used:** `{result['model_used']}` &nbsp;|&nbsp; **Route:** `{result['route']}`"
         )
-        st.text_area("Response", result["response_text"], height=140, disabled=True)
-        t1, t2, t3, t4, t5 = st.columns(5)
+        st.text_area("Response", result["response_text"], height=180, disabled=True, key="output_text_area")
+        t1, t2, t3 = st.columns(3)
         t1.metric("Input tokens", result["input_tokens"])
         t2.metric("Output tokens", result["output_tokens"])
         t3.metric("Total tokens", result["total_tokens"])
+        t4, t5 = st.columns(2)
         t4.metric("Total cost", f"${result['estimated_cost_usd']:.6f}")
         t5.metric("Latency (exact)", f"{result['latency_ms']} ms")
         st.caption(f"**Why this many tokens ({result['token_count_method']}):** {result['token_explanation']}")
@@ -162,15 +276,6 @@ if st.button("Send") and prompt.strip():
         st.caption(f"**Why this cost:** {result['cost_explanation']}")
         with st.expander("Full response JSON"):
             st.json(result)
-        # No st.rerun() here on purpose: Streamlit already reruns this
-        # script on every button click, and that single rerun is the one
-        # that has to carry this result to the browser. An extra manual
-        # rerun() immediately after would restart the script *again* --
-        # on that second pass st.button("Send") is False (nothing was
-        # clicked to trigger it), so the whole block above never runs and
-        # the result the user just generated is thrown away before it's
-        # ever rendered. The "Recent requests" table below still refreshes
-        # in this same run, since it's fetched fresh every time.
 
 st.subheader("Recent requests")
 try:

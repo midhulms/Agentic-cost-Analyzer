@@ -1,3 +1,4 @@
+import os
 import sqlite3
 import time
 from contextlib import contextmanager
@@ -35,6 +36,13 @@ _MIGRATIONS = [
 
 @contextmanager
 def get_conn():
+    # Make sure the parent directory exists (settings.db_path defaults to
+    # "data/cost_router.db" so this lines up with the ./data volume mount
+    # in docker-compose.yml and, on Render, with a persistent disk mounted
+    # at /app/data if one is attached -- see render.yaml).
+    db_dir = os.path.dirname(settings.db_path)
+    if db_dir:
+        os.makedirs(db_dir, exist_ok=True)
     conn = sqlite3.connect(settings.db_path)
     try:
         yield conn

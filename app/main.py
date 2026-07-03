@@ -1,12 +1,16 @@
 # Agentic Cost Router API. Author: Cryzal/midhul
 from pathlib import Path
 
-from fastapi import FastAPI, Response
+from fastapi import Depends, FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.agents import all_agents
+from app.auth import (
+    consume_free_use, create_session, create_user,
+    init_auth_db, mark_paid, require_user, verify_user,
+)
 from app.config import MODEL_CATALOG
 from app.cost_tracker import (
     init_db, get_stats, get_recent, get_stats_by_agent, get_stats_by_model,
@@ -16,7 +20,7 @@ from app.router import route_request
 from app import metrics
 from app.schemas import (
     RouteRequest, RouteResponse, StatsResponse, ModelInfo, AgentInfo, AgentStat, ModelStat,
-    ConsumptionPoint,
+    ConsumptionPoint, SignupRequest, LoginRequest, TokenResponse, UserInfo,
 )
 
 app = FastAPI(
@@ -38,6 +42,7 @@ app.add_middleware(
 @app.on_event("startup")
 def on_startup() -> None:
     init_db()
+    init_auth_db()
 
 
 @app.get("/health")
@@ -59,8 +64,53 @@ def dashboard() -> FileResponse:
     return FileResponse(str(STATIC_DIR / "dashboard.html"))
 
 
+@app.post("/v1/auth/signup", response_model=TokenResponse)
+def signup(req: SignupRequest) -> TokenResponse:
+    """Create an account. Every new account starts with 5 free /v1/route
+    calls before it needs to upgrade."""
+    try:
+        user = create_user(req.email, req.password)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    token = create_session(user["id"])
+    return TokenResponse(token=token, user=UserInfo(**user))
+
+
+@app.post("/v1/auth/login", response_model=TokenResponse)
+def login(req: LoginRequest) -> TokenResponse:
+    user = verify_user(req.email, req.password)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Incorrect email or password.")
+    token = create_session(user["id"])
+    return TokenResponse(token=token, user=UserInfo(**user))
+
+
+@app.get("/v1/auth/me", response_model=UserInfo)
+def me(user: dict = Depends(require_user)) -> UserInfo:
+    """Lets a client (dashboard.py, dashboard.html) check remaining free
+    uses / paid status for whichever token it's holding."""
+    return UserInfo(**user)
+
+
+@app.post("/v1/auth/upgrade", response_model=UserInfo)
+def upgrade(user: dict = Depends(require_user)) -> UserInfo:
+    """MOCK upgrade -- flips the account to unlimited with no real charge.
+    Replace the body of this endpoint with a Stripe Checkout session
+    creation, and flip is_paid from a Stripe webhook instead, before
+    taking this live with real payments."""
+    updated = mark_paid(user["id"])
+    return UserInfo(**updated)
+
+
 @app.post("/v1/route", response_model=RouteResponse)
-def route(req: RouteRequest) -> RouteResponse:
+def route(req: RouteRequest, user: dict = Depends(require_user)) -> RouteResponse:
+    quota = consume_free_use(user["id"])
+    if not quota["allowed"]:
+        raise HTTPException(
+            status_code=402,
+            detail="Free limit reached (5 requests). Call POST /v1/auth/upgrade to continue "
+                   "(mock upgrade for this demo -- wire up real billing before charging anyone).",
+        )
     return route_request(req)
 
 

@@ -30,7 +30,16 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
 
     # --- storage ---
-    db_path: str = "cost_router.db"
+    # Relative to the app's working directory (/app in Docker). Deliberately
+    # under "data/" so it lines up with the ./data volume mount in
+    # docker-compose.yml (local persistence) and with a Render persistent
+    # disk mounted at /app/data, if one is attached (see render.yaml).
+    # IMPORTANT: Render's FREE tier has no persistent disk -- the container
+    # filesystem is wiped on every deploy and on every cold-start after the
+    # service spins down from inactivity. On free tier this data will
+    # periodically reset to zero; that's expected, not a bug. Attach a paid
+    # persistent disk (or point db_path at an external DB) to keep it.
+    db_path: str = "data/cost_router.db"
 
 
 settings = Settings()

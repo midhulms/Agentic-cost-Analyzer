@@ -6,7 +6,7 @@
 <title>Agent Dispatch — Cost Router</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.3/chart.umd.min.js"></script>
+<script src="/static/vendor/chart.umd.js"></script>
 <style>
   :root{
     --bg:#0B0E14;
@@ -66,6 +66,13 @@
   #keyBar{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;}
   #keyBar input{width:230px;background:var(--panel);border:1px solid var(--border);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:12px;padding:7px 10px;border-radius:8px;}
   #keyBar label{font-size:11px;color:var(--dim);}
+
+  #authBar{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;}
+  #authBar input{background:var(--panel);border:1px solid var(--border);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:12.5px;padding:8px 10px;border-radius:8px;width:170px;}
+  #authBar button{background:var(--panel-alt);border:1px solid var(--border);color:var(--muted);font-size:12.5px;padding:8px 12px;border-radius:8px;cursor:pointer;}
+  #authBar button:hover{color:var(--text);border-color:#3a4256;}
+  #authLoggedIn{display:inline-flex;gap:8px;align-items:center;}
+  #authStatus{color:var(--rose,#e8748a);font-size:12px;}
   #keyStatus{font-size:11px;color:var(--dim);}
   .live-badge{display:inline-block;padding:1px 7px;border-radius:5px;font-size:10px;margin-left:6px;background:rgba(79,216,196,0.15);color:var(--teal);}
   .mock-badge{display:inline-block;padding:1px 7px;border-radius:5px;font-size:10px;margin-left:6px;background:rgba(139,148,163,0.15);color:var(--muted);}
@@ -181,9 +188,25 @@
   </header>
 
   <div id="apiBar">
-    <input id="apiInput" type="text" value="http://localhost:8000" spellcheck="false" />
+    <input id="apiInput" type="text" value="" spellcheck="false" />
     <button id="apiConnect">Connect</button>
     <span id="apiStatus" class="mono">not connected</span>
+  </div>
+
+  <div id="authBar">
+    <span id="authLoggedOut">
+      <input id="authEmail" type="text" placeholder="email" spellcheck="false" autocomplete="off" />
+      <input id="authPassword" type="password" placeholder="password (min 6 chars)" autocomplete="off" />
+      <button id="authLoginBtn">Log in</button>
+      <button id="authSignupBtn">Sign up</button>
+    </span>
+    <span id="authLoggedIn" style="display:none;">
+      <span id="authEmailLabel" class="mono"></span>
+      <span id="authQuotaLabel" class="mono"></span>
+      <button id="authUpgradeBtn">Upgrade (demo)</button>
+      <button id="authLogoutBtn">Log out</button>
+    </span>
+    <span id="authStatus" class="mono"></span>
   </div>
 
   <div id="keyBar">
@@ -311,7 +334,22 @@ function fmtUsd(n){ return '$' + Number(n).toFixed(6); }
 function fmtUsd4(n){ return '$' + Number(n).toFixed(4); }
 function esc(s){ const d=document.createElement('div'); d.textContent = String(s==null?'':s); return d.innerHTML; }
 
-let API_BASE = document.getElementById('apiInput').value.replace(/\/$/,'');
+// API_BASE resolution order:
+//  1. A value the user explicitly saved before (localStorage) -- always wins.
+//  2. This page's own origin -- correct by default, because /dashboard is
+//     served BY the API itself (see app/main.py's dashboard() route), so
+//     the dashboard and the API always live at the same address in normal
+//     deployment. This is what fixes "stuck on localhost:8000 forever".
+//  3. http://localhost:8000 -- only reached if this file was opened
+//     directly from disk (file://) with no saved override yet.
+function defaultApiBase(){
+  const saved = localStorage.getItem('acr_api_base');
+  if(saved) return saved;
+  if(location.protocol === 'http:' || location.protocol === 'https:') return location.origin;
+  return 'http://localhost:8000';
+}
+let API_BASE = defaultApiBase();
+document.getElementById('apiInput').value = API_BASE;
 let agentsCatalog = [];
 let modelsCatalog = [];
 let charts = {};
@@ -321,6 +359,74 @@ async function jget(path){
   if(!r.ok) throw new Error(path + ' -> ' + r.status);
   return r.json();
 }
+
+// --- Auth: 5 free /v1/route calls per account, then /v1/auth/upgrade is
+// required (mock upgrade for this demo -- see app/auth.py). Token persists
+// in localStorage so a refresh doesn't force a re-login. ---
+let authToken = localStorage.getItem('acr_token') || null;
+let authUser = null;
+
+function authHeaders(){
+  return authToken ? { 'Authorization': 'Bearer ' + authToken } : {};
+}
+
+function renderAuthBar(){
+  const loggedOut = document.getElementById('authLoggedOut');
+  const loggedIn = document.getElementById('authLoggedIn');
+  if(authToken && authUser){
+    loggedOut.style.display = 'none';
+    loggedIn.style.display = 'inline-flex';
+    document.getElementById('authEmailLabel').textContent = authUser.email;
+    document.getElementById('authQuotaLabel').textContent = authUser.is_paid
+      ? 'unlimited plan'
+      : authUser.free_uses_remaining + ' free request(s) left';
+  } else {
+    loggedOut.style.display = 'inline-flex';
+    loggedIn.style.display = 'none';
+  }
+}
+
+async function refreshMe(){
+  if(!authToken) return;
+  try{
+    const r = await fetch(API_BASE + '/v1/auth/me', { headers: authHeaders() });
+    if(r.ok){ authUser = await r.json(); renderAuthBar(); }
+    else { authToken = null; authUser = null; localStorage.removeItem('acr_token'); renderAuthBar(); }
+  }catch(e){ console.error(e); }
+}
+
+async function authRequest(path, email, password){
+  const r = await fetch(API_BASE + path, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  const data = await r.json();
+  const statusEl = document.getElementById('authStatus');
+  if(!r.ok){ statusEl.textContent = data.detail || 'Failed.'; return; }
+  authToken = data.token; authUser = data.user;
+  localStorage.setItem('acr_token', authToken);
+  statusEl.textContent = '';
+  renderAuthBar();
+}
+
+document.getElementById('authLoginBtn').addEventListener('click', () => {
+  authRequest('/v1/auth/login', document.getElementById('authEmail').value.trim(),
+              document.getElementById('authPassword').value);
+});
+document.getElementById('authSignupBtn').addEventListener('click', () => {
+  authRequest('/v1/auth/signup', document.getElementById('authEmail').value.trim(),
+              document.getElementById('authPassword').value);
+});
+document.getElementById('authLogoutBtn').addEventListener('click', () => {
+  authToken = null; authUser = null; localStorage.removeItem('acr_token'); renderAuthBar();
+});
+document.getElementById('authUpgradeBtn').addEventListener('click', async () => {
+  const r = await fetch(API_BASE + '/v1/auth/upgrade', { method:'POST', headers: authHeaders() });
+  if(r.ok){ authUser = await r.json(); renderAuthBar(); }
+});
+
+renderAuthBar();
+refreshMe();
 
 function renderStats(s){
   const items = [
@@ -395,7 +501,34 @@ function renderTicket(r, agentMeta){
     </div>`;
 }
 
+// Any dispatch failure -- network error, 401/402/422/500, bad JSON -- now
+// renders visibly here instead of silently leaving the placeholder text
+// with no explanation (previously only logged to the browser console).
+function renderTicketError(message){
+  const host = document.getElementById('ticketHost');
+  host.innerHTML = `
+    <div class="ticket show" style="--c:var(--rose,#e8748a);border-color:var(--rose,#e8748a);">
+      <div class="ticket-head">
+        <div class="who"><div class="name">Dispatch failed</div></div>
+      </div>
+      <div class="ticket-body">
+        <div class="tresponse">
+          <div class="tresponse-label">Error</div>
+          <div class="tresponse-text">${esc(message)}</div>
+        </div>
+      </div>
+    </div>`;
+}
+
 function renderCharts(agentStats, modelStats, stats){
+  if(typeof Chart === 'undefined'){
+    ['agentCostChart','routeSplitChart','modelCostChart'].forEach(id => {
+      const el = document.getElementById(id);
+      if(el && el.parentElement) el.parentElement.innerHTML =
+        '<div class="empty">Chart library did not load — check /static/vendor/chart.umd.js is reachable.</div>';
+    });
+    return;
+  }
   Object.values(charts).forEach(c => c && c.destroy());
 
   const agentCtx = document.getElementById('agentCostChart');
@@ -493,6 +626,14 @@ async function refreshConsumption(){
 }
 
 function renderConsumptionCharts(rows, selectedProviders){
+  if(typeof Chart === 'undefined'){
+    ['consumptionTokensChart','consumptionCostChart'].forEach(id => {
+      const el = document.getElementById(id);
+      if(el && el.parentElement) el.parentElement.innerHTML =
+        '<div class="empty">Chart library did not load — check /static/vendor/chart.umd.js is reachable.</div>';
+    });
+    return;
+  }
   const providerOf = {};
   modelsCatalog.forEach(m => { providerOf[m.name] = m.provider; });
 
@@ -581,7 +722,8 @@ async function refreshAll(){
   modelsCatalog = models;
   renderStats(stats);
   renderAgents(agents, agentStats);
-  renderCharts(agentStats, modelStats, stats);
+  try{ renderCharts(agentStats, modelStats, stats); }
+  catch(e){ failures.push('charts'); console.error('renderCharts failed:', e); }
   renderLog(recent);
   populateModelSelect(models);
   populateAgentSelect(agents);
@@ -615,12 +757,17 @@ function populateAgentSelect(agents){
 
 document.getElementById('apiConnect').addEventListener('click', () => {
   API_BASE = document.getElementById('apiInput').value.replace(/\/$/,'');
+  localStorage.setItem('acr_api_base', API_BASE);
   refreshAll();
 });
 
 document.getElementById('sendBtn').addEventListener('click', async () => {
   const prompt = document.getElementById('promptInput').value.trim();
   if(!prompt) return;
+  if(!authToken){
+    renderTicketError('Log in or sign up above first (5 free requests, no card needed).');
+    return;
+  }
   const btn = document.getElementById('sendBtn');
   btn.disabled = true; btn.textContent = 'Dispatching…';
   const payload = { prompt };
@@ -635,13 +782,42 @@ document.getElementById('sendBtn').addEventListener('click', async () => {
   if(ak) payload.anthropic_api_key = ak;
   if(ok) payload.openai_api_key = ok;
   try{
-    const r = await fetch(API_BASE + '/v1/route', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-    const data = await r.json();
+    const r = await fetch(API_BASE + '/v1/route', {
+      method:'POST',
+      headers: Object.assign({'Content-Type':'application/json'}, authHeaders()),
+      body: JSON.stringify(payload),
+    });
+    let data;
+    try{ data = await r.json(); }
+    catch(parseErr){
+      renderTicketError(`Server returned a non-JSON response (HTTP ${r.status}). Is ${API_BASE} pointed at the right API?`);
+      return;
+    }
+    if(r.status === 401){
+      authToken = null; authUser = null; localStorage.removeItem('acr_token'); renderAuthBar();
+      renderTicketError('Session expired — log in again above, then re-send.');
+      return;
+    }
+    if(r.status === 402){
+      renderTicketError(data.detail || 'Free limit reached — click Upgrade above to continue.');
+      return;
+    }
+    if(!r.ok){
+      // FastAPI validation errors (422) come back as {"detail":[{...}]} not a
+      // plain string -- stringify so the real reason (e.g. a bad model name
+      // in force_model) is visible instead of "[object Object]".
+      const detail = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail);
+      renderTicketError(`API error (HTTP ${r.status}): ${detail || 'unknown error'}`);
+      return;
+    }
     const meta = agentsCatalog.find(a=>a.id===data.agent_id) || {accent:'teal', icon:'zap'};
     renderTicket(data, meta);
     await refreshAll();
+    await refreshMe();
   }catch(e){
     console.error(e);
+    renderTicketError(`Could not reach ${API_BASE} (${e.message}). Is the API running and is this URL correct? `
+      + `Check the Connect box at the top of the page.`);
   }finally{
     btn.disabled = false; btn.textContent = 'Dispatch →';
   }
