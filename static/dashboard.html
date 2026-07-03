@@ -395,6 +395,14 @@ async function refreshMe(){
   }catch(e){ console.error(e); }
 }
 
+function resetTicketPanel(){
+  const host = document.getElementById('ticketHost');
+  host.innerHTML = `
+    <div class="card" style="display:flex;align-items:center;justify-content:center;min-height:180px;color:var(--dim);font-size:13px;">
+      Dispatch a prompt to see the ticket
+    </div>`;
+}
+
 async function authRequest(path, email, password){
   const r = await fetch(API_BASE + path, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -406,6 +414,7 @@ async function authRequest(path, email, password){
   authToken = data.token; authUser = data.user;
   localStorage.setItem('acr_token', authToken);
   statusEl.textContent = '';
+  resetTicketPanel();  // fresh account, fresh page -- don't show the previous account's last result
   renderAuthBar();
 }
 
@@ -418,7 +427,9 @@ document.getElementById('authSignupBtn').addEventListener('click', () => {
               document.getElementById('authPassword').value);
 });
 document.getElementById('authLogoutBtn').addEventListener('click', () => {
-  authToken = null; authUser = null; localStorage.removeItem('acr_token'); renderAuthBar();
+  authToken = null; authUser = null; localStorage.removeItem('acr_token');
+  resetTicketPanel();
+  renderAuthBar();
 });
 document.getElementById('authUpgradeBtn').addEventListener('click', async () => {
   const r = await fetch(API_BASE + '/v1/auth/upgrade', { method:'POST', headers: authHeaders() });

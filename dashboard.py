@@ -50,6 +50,7 @@ with st.sidebar:
                         data = resp.json()
                         st.session_state["token"] = data["token"]
                         st.session_state["user"] = data["user"]
+                        st.session_state["last_result"] = None  # fresh account, fresh page -- don't show the previous account's last response
                         st.rerun()
                     else:
                         st.error(resp.json().get("detail", "Log in failed."))
@@ -66,6 +67,7 @@ with st.sidebar:
                         data = resp.json()
                         st.session_state["token"] = data["token"]
                         st.session_state["user"] = data["user"]
+                        st.session_state["last_result"] = None  # fresh account, fresh page
                         st.rerun()
                     else:
                         st.error(resp.json().get("detail", "Sign up failed."))
@@ -93,6 +95,7 @@ with st.sidebar:
         if st.button("Log out"):
             st.session_state["token"] = None
             st.session_state["user"] = None
+            st.session_state["last_result"] = None
             st.rerun()
 
 if st.session_state["token"] is None:
@@ -152,10 +155,23 @@ selected_models = st.multiselect("Models to plot", candidate_models, default=can
 period_choice = st.radio("Granularity", ["Daily", "Monthly"], horizontal=True)
 
 if selected_models:
-    if period_choice == "Daily":
-        rows = httpx.get(f"{API_BASE}/v1/consumption/daily", params={"days": 30}, timeout=10).json()
-    else:
-        rows = httpx.get(f"{API_BASE}/v1/consumption/monthly", params={"months": 12}, timeout=10).json()
+    try:
+        if period_choice == "Daily":
+            resp = httpx.get(f"{API_BASE}/v1/consumption/daily", params={"days": 30}, timeout=15)
+        else:
+            resp = httpx.get(f"{API_BASE}/v1/consumption/monthly", params={"months": 12}, timeout=15)
+        resp.raise_for_status()
+        rows = resp.json()
+    except Exception as exc:
+        st.warning(
+            f"Could not load consumption data from {API_BASE} ({exc}). "
+            "If this app just woke up from being idle (Render's free tier spins down after inactivity), "
+            "the first request can take 30-60s to cold-start and return something other than JSON in the "
+            "meantime — wait a few seconds and click below to retry."
+        )
+        if st.button("Retry consumption data"):
+            st.rerun()
+        rows = []
 
     cons_df = pd.DataFrame(rows)
     if not cons_df.empty:
