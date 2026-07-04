@@ -1,8 +1,8 @@
-# Prometheus metrics for the router. Author: Cryzal/midhul
+# Prometheus metrics for the router. Author: Cryzal & Midhul
 #
 # Same idea as the agentgateway FinOps setup (Prometheus scrapes a /metrics
 # endpoint, Grafana charts it) but scoped to this single FastAPI app instead
-# of a fleet of gateways -- so there's one exporter, not one per gateway.
+# of a fleet of gateways. So there's one exporter, not one per gateway.
 #
 # Four metrics cover everything the dashboard in that blog post showed:
 #   - requests_total          -> "Total Daily Cost (All Gateways)" style counts
@@ -12,7 +12,7 @@
 #     since we're already timing every call.
 #
 # All four are labeled by route/model/agent so Grafana can break the same
-# panel down "per Gateway" the way the reference dashboard does -- here
+# panel down "per Gateway" the way the reference dashboard does. Here
 # that's "per model" / "per agent" instead of "per gateway".
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 
@@ -51,7 +51,7 @@ request_latency_seconds = Histogram(
 
 def record(route: str, model: str, agent: str, input_tokens: int, output_tokens: int,
            cost_usd: float, baseline_cost_usd: float, latency_ms: int) -> None:
-    """Single call site the router uses after every request -- keeps all the
+    """Single call site the router uses after every request. Keeps all the
     label logic in one place instead of scattered across router.py."""
     requests_total.labels(route=route, model=model, agent=agent).inc()
     tokens_total.labels(route=route, model=model, direction="input").inc(input_tokens)

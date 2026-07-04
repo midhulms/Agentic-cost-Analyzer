@@ -1,4 +1,4 @@
-# Lightweight login + free-usage-quota system. Author: Cryzal
+# Lightweight login + free-usage-quota system. Author: Cryzal & Midhul
 #
 # Deliberately dependency-free (uses only stdlib hashlib/secrets) so it adds
 # zero new packages to requirements.txt. Good enough for a portfolio/demo
@@ -147,7 +147,7 @@ def consume_free_use(user_id: int) -> dict:
 
 
 def mark_paid(user_id: int) -> dict:
-    """Mock 'upgrade' -- flips is_paid to true with no real payment taken.
+    """Mock 'upgrade'. Flips is_paid to true with no real payment taken.
     Wire this to a Stripe webhook handler (checkout.session.completed) in
     production instead of calling it directly from the client."""
     with get_conn() as conn:

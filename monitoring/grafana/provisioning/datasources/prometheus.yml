@@ -1,0 +1,13 @@
+# Author: Cryzal & Midhul
+# Auto-registers Prometheus as a Grafana data source on container start,
+# so opening Grafana for the first time already has something to query
+# instead of an empty "Add data source" screen.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true

@@ -1,9 +1,10 @@
 <!doctype html>
+<!-- Agent Dispatch dashboard. Author: Cryzal & Midhul -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Agent Dispatch — Cost Router</title>
+<title>Agent Dispatch: Cost Router</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="/static/vendor/chart.umd.js"></script>
@@ -237,7 +238,7 @@
   <div id="streamlitBar">
     <input id="streamlitInput" type="text" placeholder="https://your-app.streamlit.app (your Streamlit dashboard URL)" spellcheck="false" />
     <button id="streamlitSave">Save</button>
-    <span id="streamlitHint" class="mono">used by the "Streamlit dashboard" links below — set this once</span>
+    <span id="streamlitHint" class="mono">used by the "Streamlit dashboard" links below. Set this once</span>
   </div>
 
   <!-- ---------------------------------------------------------------------
@@ -246,7 +247,7 @@
        links back here with ?token=... in the URL; this page picks it up,
        stores it, and strips it from the address bar. From then on the same
        token (and localStorage) keeps this page signed in as that account
-       until "Log out" is clicked -- see the handleIncomingAuth() script
+       until "Log out" is clicked. See the handleIncomingAuth() script
        below for the handoff logic. -------------------------------------- -->
   <div id="authBar">
     <span id="authLoggedOut">
@@ -275,7 +276,7 @@
     <input id="openaiKey" type="password" placeholder="sk-…" spellcheck="false" autocomplete="off" />
     <label for="hfKey">Hugging Face token <a href="https://huggingface.co/settings/tokens" target="_blank" rel="noopener" class="btnlink" style="font-weight:400;">(get one free ↗)</a></label>
     <input id="hfKey" type="password" placeholder="hf_…" spellcheck="false" autocomplete="off" />
-    <span id="keyStatus" class="mono">Keys stay in this browser tab and are only sent with a dispatch to run that one request live — never stored server-side or in the log. A Hugging Face token is free to create and runs the Llama / Qwen / DeepSeek / gpt-oss models below.</span>
+    <span id="keyStatus" class="mono">Keys stay in this browser tab and are only sent with a dispatch to run that one request live. Never stored server-side or in the log. A Hugging Face token is free to create and runs the Llama / Qwen / DeepSeek / gpt-oss models below.</span>
   </div>
 
   <div id="scopeBar" class="mono">
@@ -308,8 +309,8 @@
           <select id="forceAgent"><option value="">Auto-pick agent</option></select>
           <button class="send-btn" id="sendBtn">Dispatch →</button>
         </div>
-        <div class="hint" id="modelKeyHint">No model forced -- the router picks a default based on the auto-detected route.</div>
-        <div class="hint">Token counts below use tiktoken's cl100k_base tokenizer — a free, open, offline encoder (same family GPT-3.5/4 use) — so counts are exact, not guessed, even without any paid API call.</div>
+        <div class="hint" id="modelKeyHint">No model forced. The router picks a default based on the auto-detected route.</div>
+        <div class="hint">Token counts below use tiktoken's cl100k_base tokenizer. A free, open, offline encoder (same family GPT-3.5/4 use). So counts are exact, not guessed, even without any paid API call.</div>
       </div>
       <div class="card chat-card-wrap">
         <div class="chat-head">
@@ -351,7 +352,7 @@
   <section>
     <div class="section-head">
       <h2>Consumption over time</h2>
-      <p>Daily or monthly token usage and cost, per model — GPT, Gemini, and other cloud/open-weight models</p>
+      <p>Daily or monthly token usage and cost, per model: GPT, Gemini, and other cloud/open-weight models</p>
     </div>
     <div class="controls" style="margin-bottom:14px;">
       <select id="consGranularity">
@@ -382,7 +383,7 @@
     <div class="log" id="logHost"></div>
   </section>
 
-  <footer>Agent Dispatch — a humanized view over the Agentic Cost Router API.</footer>
+  <footer>Agent Dispatch: a humanized view over the Agentic Cost Router API.</footer>
 </div>
 
 <script>
@@ -430,12 +431,12 @@ function fmtUsd4(n){ return '$' + Number(n).toFixed(4); }
 function esc(s){ const d=document.createElement('div'); d.textContent = String(s==null?'':s); return d.innerHTML; }
 
 // API_BASE resolution order:
-//  1. A value the user explicitly saved before (localStorage) -- always wins.
-//  2. This page's own origin -- correct by default, because /dashboard is
+//  1. A value the user explicitly saved before (localStorage). Always wins.
+//  2. This page's own origin. Correct by default, because /dashboard is
 //     served BY the API itself (see app/main.py's dashboard() route), so
 //     the dashboard and the API always live at the same address in normal
 //     deployment. This is what fixes "stuck on localhost:8000 forever".
-//  3. http://localhost:8000 -- only reached if this file was opened
+//  3. http://localhost:8000. Only reached if this file was opened
 //     directly from disk (file://) with no saved override yet.
 function defaultApiBase(){
   const saved = localStorage.getItem('acr_api_base');
@@ -446,7 +447,7 @@ function defaultApiBase(){
 let API_BASE = defaultApiBase();
 document.getElementById('apiInput').value = API_BASE;
 
-// Streamlit dashboard URL -- only known once the person types it in and
+// Streamlit dashboard URL. Only known once the person types it in and
 // hits Save (there's no reliable way to guess it, since dashboard.py is
 // typically deployed separately, e.g. on Streamlit Community Cloud). Saved
 // per-browser so it only needs to be entered once. Used to build the
@@ -485,7 +486,7 @@ async function jget(path, withAuth){
   return r.json();
 }
 
-// 'me' (default) or 'global' -- see #scopeBar in the HTML. Declared here,
+// 'me' (default) or 'global'. See #scopeBar in the HTML. Declared here,
 // before the auth login/logout handlers further down that read/reset it,
 // so there's no reference-before-declaration error.
 let usageScope = 'me';
@@ -502,7 +503,7 @@ document.getElementById('scopeGlobalBtn').addEventListener('click', () => {
 });
 
 // --- Auth: 5 free /v1/route calls per account, then /v1/auth/upgrade is
-// required (mock upgrade for this demo -- see app/auth.py). Token persists
+// required (mock upgrade for this demo. See app/auth.py). Token persists
 // in localStorage so a refresh doesn't force a re-login. ---
 let authToken = localStorage.getItem('acr_token') || null;
 let authUser = null;
@@ -526,7 +527,7 @@ function renderAuthBar(){
     loggedIn.style.display = 'none';
     document.getElementById('authLockedMsg').textContent = STREAMLIT_URL
       ? 'Not logged in.'
-      : 'Not logged in — paste the Streamlit dashboard URL above once, then log in there.';
+      : 'Not logged in. Paste the Streamlit dashboard URL above once, then log in there.';
   }
   updateStreamlitLinks();
 }
@@ -540,7 +541,7 @@ async function refreshMe(){
   }catch(e){ console.error(e); }
 }
 
-// There is no login/signup form on this page anymore -- login happens once
+// There is no login/signup form on this page anymore. Login happens once
 // in the Streamlit dashboard (dashboard.py), which hands this page a token
 // via the URL (see handleIncomingAuth() at the top of this script) or via
 // the paste-token fallback below. Both paths converge on the same
@@ -562,7 +563,7 @@ document.getElementById('pasteTokenUse').addEventListener('click', async () => {
     statusEl.textContent = '';
     document.getElementById('pasteTokenInput').value = '';
     document.getElementById('pasteTokenRow').style.display = 'none';
-    resetChatPanel();  // fresh account, fresh page -- don't show the previous account's last output
+    resetChatPanel();  // fresh account, fresh page. Don't show the previous account's last output
     renderAuthBar();
     usageScope = 'me'; updateScopeButtons();
     refreshAll();
@@ -576,7 +577,7 @@ document.getElementById('authLogoutBtn').addEventListener('click', () => {
   resetChatPanel();
   renderAuthBar();
   usageScope = 'global'; updateScopeButtons();
-  refreshAll();  // no token anymore -- fall back to the global demo view
+  refreshAll();  // no token anymore. Fall back to the global demo view
 });
 document.getElementById('authUpgradeBtn').addEventListener('click', async () => {
   const r = await fetch(API_BASE + '/v1/auth/upgrade', { method:'POST', headers: authHeaders() });
@@ -632,10 +633,10 @@ function methodLabel(method){
 // ---------------------------------------------------------------------------
 // Chat-style "Model Output" box. chatHistory is in-memory only (per tab) --
 // each entry is one of:
-//   {role:'user', text}                  -- the prompt, right-aligned bubble
-//   {role:'pending'}                     -- shown while a dispatch is in flight
-//   {role:'assistant', data, meta}       -- the agent's reply + full ticket
-//   {role:'error', text}                 -- a failed dispatch
+//   {role:'user', text}. The prompt, right-aligned bubble
+//   {role:'pending'}. Shown while a dispatch is in flight
+//   {role:'assistant', data, meta}. The agent's reply + full ticket
+//   {role:'error', text}. A failed dispatch
 // This replaces the old single "ticket" panel that only ever showed the
 // most recent result and didn't visually pair the prompt with its reply.
 // ---------------------------------------------------------------------------
@@ -709,7 +710,7 @@ function renderCharts(agentStats, modelStats, stats){
     ['agentCostChart','routeSplitChart','modelCostChart'].forEach(id => {
       const el = document.getElementById(id);
       if(el && el.parentElement) el.parentElement.innerHTML =
-        '<div class="empty">Chart library did not load — check /static/vendor/chart.umd.js is reachable.</div>';
+        '<div class="empty">Chart library did not load. Check /static/vendor/chart.umd.js is reachable.</div>';
     });
     return;
   }
@@ -776,7 +777,7 @@ function renderCharts(agentStats, modelStats, stats){
 
 function renderLog(rows){
   const host = document.getElementById('logHost');
-  if(!rows.length){ host.innerHTML = '<div class="empty">No dispatches yet — send a prompt above.</div>'; return; }
+  if(!rows.length){ host.innerHTML = '<div class="empty">No dispatches yet. Send a prompt above.</div>'; return; }
   const head = `<div class="log-row head"><span>Time</span><span>Agent / Prompt</span><span>Model</span><span>Route</span><span>Tokens</span><span>Cost</span></div>`;
   const rowsHtml = rows.map(r => {
     const meta = agentsCatalog.find(a=>a.id===r.agent_id) || {accent:'teal'};
@@ -801,8 +802,11 @@ async function refreshConsumption(){
   try{
     const granularity = document.getElementById('consGranularity').value;
     const selectedProviders = Array.from(document.querySelectorAll('.provider-toggle:checked')).map(el => el.value);
-    const path = granularity === 'daily' ? '/v1/consumption/daily?days=30' : '/v1/consumption/monthly?months=12';
-    const rows = await jget(path);
+    const scoped = usageScope === 'me' && !!authToken;
+    const base = granularity === 'daily' ? '/v1/consumption/daily' : '/v1/consumption/monthly';
+    const path = scoped ? `${base}/me` : base;
+    const query = granularity === 'daily' ? 'days=30' : 'months=12';
+    const rows = await jget(`${path}?${query}`, scoped);
     renderConsumptionCharts(rows, selectedProviders);
   }catch(e){
     console.error(e);
@@ -814,7 +818,7 @@ function renderConsumptionCharts(rows, selectedProviders){
     ['consumptionTokensChart','consumptionCostChart'].forEach(id => {
       const el = document.getElementById(id);
       if(el && el.parentElement) el.parentElement.innerHTML =
-        '<div class="empty">Chart library did not load — check /static/vendor/chart.umd.js is reachable.</div>';
+        '<div class="empty">Chart library did not load. Check /static/vendor/chart.umd.js is reachable.</div>';
     });
     return;
   }
@@ -877,7 +881,7 @@ async function refreshAll(){
   document.getElementById('apiStatus').textContent = 'loading…';
 
   // "My usage" only works once logged in (the /me endpoints require a
-  // token) -- fall back to the global endpoints for a logged-out visitor
+  // token). Fall back to the global endpoints for a logged-out visitor
   // so the page still shows something instead of erroring.
   const scoped = usageScope === 'me' && !!authToken;
   const statsPath = scoped ? '/v1/stats/me' : '/v1/stats';
@@ -888,7 +892,7 @@ async function refreshAll(){
   // Each endpoint is fetched independently so one failing call (e.g. a
   // fresh DB with no /v1/recent rows yet, or a stale /v1/stats/models)
   // doesn't blank out the sections that succeeded. Promise.all would
-  // reject the *entire* batch on a single failure -- allSettled won't.
+  // reject the *entire* batch on a single failure. AllSettled won't.
   const [statsR, agentsR, agentStatsR, modelStatsR, recentR, modelsR] = await Promise.allSettled([
     jget(statsPath, scoped), jget('/v1/agents'), jget(agentStatsPath, scoped),
     jget(modelStatsPath, scoped), jget(recentPath, scoped), jget('/v1/models'),
@@ -928,7 +932,7 @@ async function refreshAll(){
   }
 
   if(failures.length){
-    document.getElementById('apiStatus').textContent = `connected, but ${failures.length} endpoint(s) failed — is the API running with a fresh DB? (${failures.join(', ')})`;
+    document.getElementById('apiStatus').textContent = `connected, but ${failures.length} endpoint(s) failed. Is the API running with a fresh DB? (${failures.join(', ')})`;
   }else{
     document.getElementById('apiStatus').textContent = 'connected · ' + API_BASE;
   }
@@ -944,7 +948,7 @@ function populateModelSelect(models){
     mistral: 'Mistral (needs .env key)',
     gemini: 'Gemini (needs .env key)',
     ollama: 'Local Ollama (no key needed)',
-    mock: 'Mock (no key -- for demo only)',
+    mock: 'Mock (no key, for demo only)',
   };
   // Group by which backend/key each model actually calls, so it's obvious
   // at a glance which models a Hugging Face token will (and won't) run.
@@ -978,21 +982,21 @@ function updateModelKeyHint(){
     anthropic: 'the Anthropic key field',
     mistral: 'MISTRAL_API_KEY in .env on the server (no per-request field yet)',
     gemini: 'GEMINI_API_KEY in .env on the server (no per-request field yet)',
-    ollama: 'nothing -- runs against a local Ollama server',
-    mock: 'nothing -- this always returns a mock reply',
+    ollama: 'nothing. Runs against a local Ollama server',
+    mock: 'nothing. This always returns a mock reply',
   };
   ['hfKey', 'openaiKey', 'anthropicKey'].forEach(id => {
     const el = document.getElementById(id);
     if(el) el.classList.remove('key-needed');
   });
   if(!api){
-    hint.textContent = 'No model forced -- the router picks a default based on the auto-detected route.';
+    hint.textContent = 'No model forced. The router picks a default based on the auto-detected route.';
     return;
   }
   const fieldId = FIELD_FOR_API[api];
   if(fieldId){
     const filled = document.getElementById(fieldId).value.trim().length > 0;
-    hint.textContent = `This model needs ${LABEL_FOR_API[api]}${filled ? ' -- looks filled in.' : ' -- currently empty, so it will return a labeled mock reply.'}`;
+    hint.textContent = `This model needs ${LABEL_FOR_API[api]}${filled ? '. Looks filled in.' : '. Currently empty, so it will return a labeled mock reply.'}`;
     hint.style.color = filled ? 'var(--teal)' : 'var(--rose, #e07)';
     const el = document.getElementById(fieldId);
     if(el && !filled) el.classList.add('key-needed');
@@ -1011,7 +1015,7 @@ function populateAgentSelect(agents){
   const sel = document.getElementById('forceAgent');
   const prev = sel.value;
   sel.innerHTML = '<option value="">Auto-pick agent</option>' +
-    agents.map(a => `<option value="${a.id}">${a.name} — ${a.role}</option>`).join('');
+    agents.map(a => `<option value="${a.id}">${a.name}: ${a.role}</option>`).join('');
   if(prev) sel.value = prev;
 }
 
@@ -1036,7 +1040,7 @@ document.getElementById('sendBtn').addEventListener('click', async () => {
   if(!prompt) return;
   if(!authToken){
     chatHistory.push({role:'user', text: prompt});
-    chatHistory.push({role:'error', text:'Log in first — use "Log in via Streamlit dashboard" above (5 free requests, no card needed).'});
+    chatHistory.push({role:'error', text:'Log in first. Use "Log in via Streamlit dashboard" above (5 free requests, no card needed).'});
     renderChat();
     return;
   }
@@ -1074,16 +1078,16 @@ document.getElementById('sendBtn').addEventListener('click', async () => {
     }
     if(r.status === 401){
       authToken = null; authUser = null; localStorage.removeItem('acr_token'); renderAuthBar();
-      resolvePending({role:'error', text:'Session expired — log in again via the Streamlit dashboard, then re-send.'});
+      resolvePending({role:'error', text:'Session expired. Log in again via the Streamlit dashboard, then re-send.'});
       return;
     }
     if(r.status === 402){
-      resolvePending({role:'error', text: data.detail || 'Free limit reached — click Upgrade above to continue.'});
+      resolvePending({role:'error', text: data.detail || 'Free limit reached. Click Upgrade above to continue.'});
       return;
     }
     if(!r.ok){
       // FastAPI validation errors (422) come back as {"detail":[{...}]} not a
-      // plain string -- stringify so the real reason (e.g. a bad model name
+      // plain string. Stringify so the real reason (e.g. a bad model name
       // in force_model) is visible instead of "[object Object]".
       const detail = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail);
       resolvePending({role:'error', text:`API error (HTTP ${r.status}): ${detail || 'unknown error'}`});

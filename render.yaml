@@ -1,15 +1,15 @@
-# Author: Cryzal
+# Author: Cryzal & Midhul
 # Render Blueprint: lets Render read this file and configure the service
 # automatically instead of filling in every field by hand in the dashboard.
 # Docs: https://render.com/docs/infrastructure-as-code
 #
-# IMPORTANT -- data persistence on Render:
+# IMPORTANT. Data persistence on Render:
 # app/config.py's db_path ("data/cost_router.db") is plain SQLite on local
 # disk. Render's FREE plan gives the container NO persistent disk: every
 # redeploy, and every cold-start after the service spins down from
 # inactivity, wipes the filesystem and the DB resets to zero requests/
 # agents. That is what was causing "no agents / no data" on the deployed
-# app even though it worked locally -- it's not a code bug, it's the free
+# app even though it worked locally. It's not a code bug, it's the free
 # tier's storage model.
 #
 # To make data survive across deploys/restarts, do ONE of:
@@ -17,7 +17,7 @@
 #      Disk, then uncomment the `disk:` block below (mountPath must match
 #      db_path's parent, i.e. /app/data).
 #   2) Point db_path at an external database instead of local SQLite
-#      (e.g. Render's own free-tier PostgreSQL, or Supabase/Turso) -- more
+#      (e.g. Render's own free-tier PostgreSQL, or Supabase/Turso). More
 #      work, but survives forever regardless of plan/tier.
 # On the free tier as configured below, resets are expected behavior.
 services:

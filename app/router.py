@@ -1,5 +1,5 @@
 # Routing logic: picks a model tier by prompt complexity, hands it to an
-# agent persona, calls the model, and logs token/cost data. Author: Cryzal
+# agent persona, calls the model, and logs token/cost data. Author: Cryzal & Midhul
 from app.agents import agent_info, pick_agent
 from app.complexity import score_with_explanation
 from app.config import settings, price_for, api_for
@@ -73,7 +73,7 @@ def route_request(req: RouteRequest, user_id: int | None = None) -> RouteRespons
     )
     # "provider-api-exact" covers OpenAI/Anthropic/Mistral, which report
     # billed usage directly. Ollama never reports usage (so its method is
-    # tiktoken/whitespace even on a real call) -- for that one case, treat
+    # tiktoken/whitespace even on a real call). For that one case, treat
     # anything that isn't one of providers.py's own bracketed
     # mock/failure/not-configured messages as a genuine live reply.
     is_live_call = method == "provider-api-exact" or (

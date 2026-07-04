@@ -1,4 +1,4 @@
-# Streamlit dashboard for the Agentic Cost Router. Author: Cryzal/midhul
+# Streamlit dashboard for the Agentic Cost Router. Author: Cryzal & Midhul
 import os
 import httpx
 import pandas as pd
@@ -15,24 +15,31 @@ if _secrets_path.exists():
         if _key in st.secrets:
             os.environ.setdefault(_key, st.secrets[_key])
 API_BASE = os.environ.get("ROUTER_API_BASE", "http://localhost:8000")
+# API_BASE is used for server-to-server calls made from Python here (httpx.get/post),
+# which inside Docker must hit the internal service name (e.g. http://api:8000).
+# PUBLIC_API_BASE is used only for links/text meant to be opened in the user's own
+# browser, which cannot resolve Docker's internal hostnames -- it needs localhost
+# (or a real public domain when deployed). Falls back to API_BASE if not set,
+# which is correct for the no-Docker local run where both are the same.
+PUBLIC_API_BASE = os.environ.get("ROUTER_PUBLIC_API_BASE", API_BASE if not API_BASE.startswith("http://api:") else "http://localhost:8000")
 
 st.title("Agentic Cost Router")
 st.caption("Routes prompts by complexity, tracks cost saved vs. always using the frontier model.")
 st.info("A more visual, agent-focused view of this same data lives at **/dashboard** on the API "
-        f"(e.g. {API_BASE}/dashboard) — cards per agent, a chat-style output box, and charts. "
-        "Logging in here also logs you in there (and vice versa) — no separate account needed.")
+        f"(e.g. {PUBLIC_API_BASE}/dashboard), with cards per agent, a chat-style output box, and charts. "
+        "Logging in here also logs you in there (and vice versa); no separate account is needed.")
 
-# ---------------------------------------------------------------------------
+# ======================================================================
 # Login / signup gate. POST /v1/route now requires a Bearer token (5 free
-# calls per account, then /v1/auth/upgrade is required) -- see app/auth.py.
+# calls per account, then /v1/auth/upgrade is required). See app/auth.py.
 # Everything below this block is unreachable until st.session_state["token"]
 # is set, which happens on a successful login or signup.
-# ---------------------------------------------------------------------------
+# ======================================================================
 if "token" not in st.session_state:
     st.session_state["token"] = None
     st.session_state["user"] = None
 
-# ---------------------------------------------------------------------------
+# ======================================================================
 # Single sign-on with the HTML dashboard (static/dashboard.html, served at
 # {API_BASE}/dashboard). That page has no login form of its own anymore --
 # it either arrives here already logged in via ?token=... in its own URL,
@@ -42,7 +49,7 @@ if "token" not in st.session_state:
 # and the other one just follows. ?logout=1 clears the session the same
 # way. The query params are cleared right after so refreshing the page
 # doesn't replay the same action and so tokens don't linger in the URL.
-# ---------------------------------------------------------------------------
+# ======================================================================
 _qp = st.query_params
 if _qp.get("logout") == "1":
     st.session_state["token"] = None
@@ -81,7 +88,7 @@ with st.sidebar:
                         data = resp.json()
                         st.session_state["token"] = data["token"]
                         st.session_state["user"] = data["user"]
-                        st.session_state["last_result"] = None  # fresh account, fresh page -- don't show the previous account's last response
+                        st.session_state["last_result"] = None  # fresh account, fresh page. Don't show the previous account's last response
                         st.rerun()
                     else:
                         st.error(resp.json().get("detail", "Log in failed."))
@@ -113,7 +120,7 @@ with st.sidebar:
             st.metric("Free requests left", user["free_uses_remaining"])
             if user["free_uses_remaining"] <= 0:
                 st.warning("Free limit reached.")
-            if st.button("Upgrade (demo — no real charge)"):
+            if st.button("Upgrade (demo, no real charge)"):
                 try:
                     resp = httpx.post(f"{API_BASE}/v1/auth/upgrade", headers=_auth_headers(), timeout=10)
                     if resp.status_code == 200:
@@ -124,17 +131,17 @@ with st.sidebar:
                 except Exception as exc:
                     st.error(f"Could not reach {API_BASE} ({exc}).")
 
-        # Same session, other view -- carries the token over so
+        # Same session, other view. Carries the token over so
         # dashboard.html opens already logged in as this account instead
         # of showing its own login form.
         st.link_button(
             "Open Agent Dispatch view ↗",
-            f"{API_BASE}/dashboard?token={st.session_state['token']}",
+            f"{PUBLIC_API_BASE}/dashboard?token={st.session_state['token']}",
         )
         st.caption(
             "Logging out below only ends the session here. To end it on the "
             "Agent Dispatch view too, "
-            f"[click here]({API_BASE}/dashboard?logout=1) (opens in that page)."
+            f"[click here]({PUBLIC_API_BASE}/dashboard?logout=1) (opens in that page)."
         )
         if st.button("Log out"):
             st.session_state["token"] = None
@@ -146,13 +153,13 @@ if st.session_state["token"] is None:
     st.info("Log in or create a free account in the sidebar to use the router (5 free requests, no card needed).")
     st.stop()
 
-# ---------------------------------------------------------------------------
+# ======================================================================
 # Stats / charts. Previously every account saw the same numbers here because
 # these all hit the GLOBAL endpoints (/v1/stats, /v1/recent, ...), which
 # aggregate every user's requests together. Default view is now each user's
 # own data via the authenticated /me endpoints; the toggle below lets anyone
 # switch back to the combined "everyone" view if they want it.
-# ---------------------------------------------------------------------------
+# ======================================================================
 view_choice = st.radio("View", ["My usage", "Everyone (global demo)"], horizontal=True)
 scope_me = view_choice == "My usage"
 stats_path = "/v1/stats/me" if scope_me else "/v1/stats"
@@ -181,7 +188,7 @@ if split_df["requests"].sum() > 0:
                  color="route", color_discrete_map={"cheap": "#4FD1C5", "frontier": "#E8A33D"})
     st.plotly_chart(fig, use_container_width=True)
 else:
-    st.info("No requests logged yet — send one below or via POST /v1/route.")
+    st.info("No requests logged yet. Send one below or via POST /v1/route.")
 
 st.subheader("Available models")
 try:
@@ -221,7 +228,7 @@ if selected_models:
             f"Could not load consumption data from {API_BASE} ({exc}). "
             "If this app just woke up from being idle (Render's free tier spins down after inactivity), "
             "the first request can take 30-60s to cold-start and return something other than JSON in the "
-            "meantime — wait a few seconds and click below to retry."
+            "meantime. Wait a few seconds and click below to retry."
         )
         if st.button("Retry consumption data"):
             st.rerun()
@@ -232,7 +239,7 @@ if selected_models:
         cons_df = cons_df[cons_df["model_used"].isin(selected_models)]
 
     if cons_df.empty:
-        st.info("No consumption logged yet for the selected models/period — send a few prompts below first.")
+        st.info("No consumption logged yet for the selected models/period. Send a few prompts below first.")
     else:
         tok_fig = px.line(
             cons_df, x="period", y="total_tokens", color="model_used", markers=True,
@@ -250,13 +257,13 @@ if selected_models:
 else:
     st.info("Select at least one model above to see its consumption trend.")
 
-# ---------------------------------------------------------------------------
-# Dispatch a prompt -- now a dedicated two-column layout: controls on the
+# ======================================================================
+# Dispatch a prompt. Now a dedicated two-column layout: controls on the
 # left, a persistent "Model Output" panel on the right. The result stays in
 # st.session_state["last_result"] so the output column keeps showing the
 # last response even as the rest of the page reruns (e.g. when you touch a
 # filter above), instead of only flashing on screen for one run.
-# ---------------------------------------------------------------------------
+# ======================================================================
 st.subheader("Dispatch a prompt")
 left, right = st.columns([1, 1])
 
@@ -273,7 +280,7 @@ with left:
         "Force model (optional)",
         ["default for route"] + [m["name"] for m in models],
         format_func=lambda n: n if n == "default for route" else
-            f"{n} — needs {_api_label.get(next((m['api'] for m in models if m['name'] == n), 'mock'), '?')}",
+            f"{n} (needs {_api_label.get(next((m['api'] for m in models if m['name'] == n), 'mock'), '?')})",
     )
     try:
         agents_catalog = httpx.get(f"{API_BASE}/v1/agents", timeout=5).json()
@@ -287,7 +294,7 @@ with left:
     with st.expander("Run a real model (bring your own API key)"):
         st.caption(
             "Pick a model above, paste the matching key here, and Send will call that model live "
-            "instead of returning a mock reply. Keys are only used for this request — they are not "
+            "instead of returning a mock reply. Keys are only used for this request; they are not "
             "saved to disk, not logged, and not stored in this browser session beyond the current "
             "page load. No OpenAI/Anthropic account? Hugging Face tokens are free to create at "
             "https://huggingface.co/settings/tokens and run the Llama / Qwen / DeepSeek / gpt-oss "
@@ -322,7 +329,7 @@ with left:
             elif resp.status_code == 401:
                 st.session_state["token"] = None
                 st.session_state["user"] = None
-                st.error("Session expired — log in again.")
+                st.error("Session expired. Log in again.")
                 st.rerun()
             elif resp.status_code != 200:
                 st.error(f"API returned {resp.status_code}: {resp.text}")

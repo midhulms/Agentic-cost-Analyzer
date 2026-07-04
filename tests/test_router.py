@@ -69,7 +69,7 @@ def test_summarize_prompt_routes_to_echo_agent():
 
 def test_force_agent_overrides_auto_pick():
     # "resume make" has no code/planning/reasoning signals, so it would
-    # normally land on Sparrow -- force_agent should override that.
+    # normally land on Sparrow. Force_agent should override that.
     resp = route_request(RouteRequest(prompt="resume make", force_agent="compiler"))
     assert resp.agent_id == "compiler"
     assert resp.agent_name == "Compiler"
@@ -91,7 +91,7 @@ def test_mock_dispatch_is_not_live():
 
 def test_bad_key_attempts_real_call_and_reports_failure():
     # A per-request key should make the router actually try the real
-    # OpenAI API (not just mock) -- an invalid key should come back as a
+    # OpenAI API (not just mock). An invalid key should come back as a
     # clearly-labeled failure, not a silent mock relabel, and should still
     # never crash the request.
     resp = route_request(

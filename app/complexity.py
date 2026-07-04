@@ -1,7 +1,7 @@
 """
 Heuristic complexity scorer.
 
-Author: midhul:Cryzal
+Author: Cryzal & Midhul
 
 This is intentionally transparent and dependency-free so it's easy to explain
 and to swap out later (e.g. for a small trained classifier). It returns a
@@ -47,7 +47,7 @@ def score(prompt: str) -> float:
     question_count = len(QUESTION_PATTERN.findall(text))
     multi_question_score = min(question_count / 3, 1.0)
 
-    # Weighted blend -- weights are a starting point, tune against real traffic.
+    # Weighted blend. Weights are a starting point, tune against real traffic.
     weighted = (
         0.20 * length_score
         + 0.15 * length_word_score
@@ -62,7 +62,7 @@ def score(prompt: str) -> float:
 def score_with_explanation(prompt: str) -> dict:
     """
     Same scoring logic as score(), but also returns which signals fired
-    and a plain-English reason -- used to explain routing + token decisions
+    and a plain-English reason. Used to explain routing + token decisions
     in the API response and dashboard.
     """
     text = prompt.strip()

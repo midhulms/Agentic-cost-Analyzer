@@ -1,3 +1,4 @@
+# All request/cost persistence (SQLite). Author: Cryzal & Midhul
 import os
 import sqlite3
 import time
@@ -32,7 +33,7 @@ _MIGRATIONS = [
     ("agent_name", "ALTER TABLE requests ADD COLUMN agent_name TEXT NOT NULL DEFAULT 'Sparrow'"),
     ("token_count_method", "ALTER TABLE requests ADD COLUMN token_count_method TEXT NOT NULL DEFAULT 'whitespace-approx'"),
     # Nullable: old rows logged before accounts existed have no owner, and
-    # stay visible in the GLOBAL stats endpoints (/v1/stats etc.) -- they
+    # stay visible in the GLOBAL stats endpoints (/v1/stats etc.). They
     # just never show up in a specific user's /v1/stats/me.
     ("user_id", "ALTER TABLE requests ADD COLUMN user_id INTEGER"),
 ]
@@ -43,7 +44,7 @@ def get_conn():
     # Make sure the parent directory exists (settings.db_path defaults to
     # "data/cost_router.db" so this lines up with the ./data volume mount
     # in docker-compose.yml and, on Render, with a persistent disk mounted
-    # at /app/data if one is attached -- see render.yaml).
+    # at /app/data if one is attached. See render.yaml).
     db_dir = os.path.dirname(settings.db_path)
     if db_dir:
         os.makedirs(db_dir, exist_ok=True)
@@ -207,7 +208,7 @@ def get_stats_by_model(user_id: int | None = None) -> list[dict]:
 
 
 def get_daily_consumption(days: int = 30, model: str | None = None, user_id: int | None = None) -> list[dict]:
-    """One row per (day, model) over the last `days` days -- this is what
+    """One row per (day, model) over the last `days` days. This is what
     feeds the daily line graph. `ts` is stored as a unix timestamp, so we
     bucket it with SQLite's date()/unixepoch modifier rather than a second
     table."""

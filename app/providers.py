@@ -2,13 +2,13 @@
 Thin adapters around each backend so app/router.py never has to know
 whether it's talking to a local Ollama model, a hosted API, or a mock.
 
-Author: Cryzal
+Author: Cryzal & Midhul
 
 Every call_* function returns (text, input_tokens, output_tokens, count_method).
 
 Token counting, in order of preference:
-1. Provider-reported usage (Anthropic API) -- exact, comes straight from billing.
-2. tiktoken cl100k_base encoding -- exact tokenization, run 100% locally,
+1. Provider-reported usage (Anthropic API). Exact, comes straight from billing.
+2. tiktoken cl100k_base encoding. Exact tokenization, run 100% locally,
    no API key or network call required. It's the same encoding family
    OpenAI's GPT-3.5/GPT-4 models use, and it's a free/open-source library
    (pip install tiktoken), which is why it's used here as the default
@@ -17,7 +17,7 @@ Token counting, in order of preference:
    own vocabularies), but it is an exact count of *something real* rather
    than an approximation, and it's close enough across modern BPE
    tokenizers to be a trustworthy cost estimate.
-3. Whitespace-word approximation -- last-resort fallback if tiktoken
+3. Whitespace-word approximation. Last-resort fallback if tiktoken
    itself isn't installed/importable.
 """
 import time
@@ -171,20 +171,20 @@ def call_gemini_model(prompt: str, model_name: str | None = None, api_key: str |
 
 
 def call_huggingface_model(prompt: str, model_name: str | None = None, api_key: str | None = None) -> tuple[str, int, int, str]:
-    """Real call to Hugging Face's Inference Providers router -- an
+    """Real call to Hugging Face's Inference Providers router. An
     OpenAI-compatible chat completions endpoint that fronts many backend
     providers (Together, Fireworks, Cerebras, Novita, ...) behind a single
     free-to-obtain HF token. Docs: https://huggingface.co/docs/inference-providers
 
     model_name should be the HF model id, e.g. "meta-llama/Llama-3.1-8B-Instruct"
     or "deepseek-ai/DeepSeek-V3-0324". You can optionally suffix a routing
-    policy (":fastest" | ":cheapest" | ":preferred") -- if none is given,
+    policy (":fastest" | ":cheapest" | ":preferred"). If none is given,
     HF defaults to ":fastest".
     """
     model_name = model_name or "meta-llama/Llama-3.1-8B-Instruct"
     key = api_key or settings.hf_api_key
     if not key:
-        text = f"[no Hugging Face API token configured -- add one to run '{model_name}' live] " + _mock_reply(
+        text = f"[no Hugging Face API token configured. Add one to run '{model_name}' live] " + _mock_reply(
             prompt, "frontier" if MODEL_CATALOG.get(model_name, {}).get("tier") == "frontier" else "cheap"
         )
         in_tok, method = count_tokens(prompt)
@@ -219,7 +219,7 @@ def call_huggingface_model(prompt: str, model_name: str | None = None, api_key: 
             detail = exc.response.json().get("error", exc.response.text)
         except Exception:
             detail = exc.response.text
-        text = f"[hugging face call failed: HTTP {exc.response.status_code} -- {detail}] " + _mock_reply(prompt, "cheap")
+        text = f"[hugging face call failed: HTTP {exc.response.status_code}. {detail}] " + _mock_reply(prompt, "cheap")
         in_tok, method = count_tokens(prompt)
         out_tok, _ = count_tokens(text)
         return text, in_tok, out_tok, method
@@ -261,7 +261,7 @@ def call_model(
 ) -> tuple[str, int, int, str]:
     """Single dispatch point used by the router: looks up which real API a
     model belongs to (MODEL_CATALOG[model_name]['api']) and calls it if a
-    key is available -- either passed in for this one request (from the
+    key is available. Either passed in for this one request (from the
     dashboard's key fields) or configured in .env. No key, no matching
     provider, or an unrecognized model name all fall back to a clearly
     labeled mock reply instead of failing the request."""
@@ -272,7 +272,7 @@ def call_model(
         if key:
             return call_anthropic_model(prompt, model_name, api_key=key)
         flavor = "frontier" if MODEL_CATALOG.get(model_name, {}).get("tier") == "frontier" else "cheap"
-        text = f"[no Anthropic API key configured -- add one to run '{model_name}' live] " + _mock_reply(prompt, flavor)
+        text = f"[no Anthropic API key configured. Add one to run '{model_name}' live] " + _mock_reply(prompt, flavor)
         in_tok, method = count_tokens(prompt)
         out_tok, _ = count_tokens(text)
         return text, in_tok, out_tok, method
@@ -282,7 +282,7 @@ def call_model(
         if key:
             return call_openai_model(prompt, model_name, api_key=key)
         flavor = "frontier" if MODEL_CATALOG.get(model_name, {}).get("tier") == "frontier" else "cheap"
-        text = f"[no OpenAI API key configured -- add one to run '{model_name}' live] " + _mock_reply(prompt, flavor)
+        text = f"[no OpenAI API key configured. Add one to run '{model_name}' live] " + _mock_reply(prompt, flavor)
         in_tok, method = count_tokens(prompt)
         out_tok, _ = count_tokens(text)
         return text, in_tok, out_tok, method
@@ -291,7 +291,7 @@ def call_model(
         if settings.mistral_api_key:
             return call_mistral_model(prompt, model_name)
         flavor = "frontier" if MODEL_CATALOG.get(model_name, {}).get("tier") == "frontier" else "cheap"
-        text = f"[no Mistral API key configured -- add one to run '{model_name}' live] " + _mock_reply(prompt, flavor)
+        text = f"[no Mistral API key configured. Add one to run '{model_name}' live] " + _mock_reply(prompt, flavor)
         in_tok, method = count_tokens(prompt)
         out_tok, _ = count_tokens(text)
         return text, in_tok, out_tok, method
@@ -301,7 +301,7 @@ def call_model(
         if key:
             return call_huggingface_model(prompt, model_name, api_key=key)
         flavor = "frontier" if MODEL_CATALOG.get(model_name, {}).get("tier") == "frontier" else "cheap"
-        text = f"[no Hugging Face API token configured -- add one to run '{model_name}' live] " + _mock_reply(prompt, flavor)
+        text = f"[no Hugging Face API token configured. Add one to run '{model_name}' live] " + _mock_reply(prompt, flavor)
         in_tok, method = count_tokens(prompt)
         out_tok, _ = count_tokens(text)
         return text, in_tok, out_tok, method
@@ -313,7 +313,7 @@ def call_model(
         if settings.gemini_api_key:
             return call_gemini_model(prompt, model_name)
         flavor = "frontier" if MODEL_CATALOG.get(model_name, {}).get("tier") == "frontier" else "cheap"
-        text = f"[no Gemini API key configured -- add one to run '{model_name}' live] " + _mock_reply(prompt, flavor)
+        text = f"[no Gemini API key configured. Add one to run '{model_name}' live] " + _mock_reply(prompt, flavor)
         in_tok, method = count_tokens(prompt)
         out_tok, _ = count_tokens(text)
         return text, in_tok, out_tok, method
@@ -339,9 +339,9 @@ def call_frontier_model(prompt: str, model_name: str | None = None) -> tuple[str
 
 
 _METHOD_LABELS = {
-    "provider-api-exact": "returned directly by the provider's API as billed usage -- exact.",
-    "tiktoken-cl100k": "counted locally with tiktoken's cl100k_base tokenizer (free, offline, no API call) -- exact token count for that encoding.",
-    "whitespace-approx": "estimated as ~1.3 tokens per whitespace-separated word -- tiktoken wasn't available, so this is a rough fallback only.",
+    "provider-api-exact": "returned directly by the provider's API as billed usage. Exact.",
+    "tiktoken-cl100k": "counted locally with tiktoken's cl100k_base tokenizer (free, offline, no API call). Exact token count for that encoding.",
+    "whitespace-approx": "estimated as ~1.3 tokens per whitespace-separated word. Tiktoken wasn't available, so this is a rough fallback only.",
 }
 
 

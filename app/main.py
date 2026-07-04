@@ -1,4 +1,4 @@
-# Agentic Cost Router API. Author: Cryzal/midhul
+# Agentic Cost Router API. Author: Cryzal & Midhul
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Response
@@ -32,13 +32,16 @@ app = FastAPI(
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 if STATIC_DIR.exists():
-       app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
 app.add_middleware(
-       CORSMiddleware,
-       allow_origins=["*"],
-       allow_methods=["*"],
-       allow_headers=["*"],
-   )
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
 @app.on_event("startup")
 def on_startup() -> None:
     init_db()
@@ -53,14 +56,14 @@ def health() -> dict:
 @app.get("/metrics")
 def metrics_endpoint() -> Response:
     """Prometheus scrapes this. Format: text/plain in the standard exposition
-    format -- point a Prometheus `scrape_configs` job at this path."""
+    format. Point a Prometheus `scrape_configs` job at this path."""
     body, content_type = metrics.render()
     return Response(content=body, media_type=content_type)
 
 
 @app.get("/dashboard")
 def dashboard() -> FileResponse:
-    """The humanized dashboard -- a static page that talks to this same API."""
+    """The humanized dashboard. A static page that talks to this same API."""
     return FileResponse(str(STATIC_DIR / "dashboard.html"))
 
 
@@ -94,7 +97,7 @@ def me(user: dict = Depends(require_user)) -> UserInfo:
 
 @app.post("/v1/auth/upgrade", response_model=UserInfo)
 def upgrade(user: dict = Depends(require_user)) -> UserInfo:
-    """MOCK upgrade -- flips the account to unlimited with no real charge.
+    """MOCK upgrade. Flips the account to unlimited with no real charge.
     Replace the body of this endpoint with a Stripe Checkout session
     creation, and flip is_paid from a Stripe webhook instead, before
     taking this live with real payments."""
@@ -109,14 +112,14 @@ def route(req: RouteRequest, user: dict = Depends(require_user)) -> RouteRespons
         raise HTTPException(
             status_code=402,
             detail="Free limit reached (5 requests). Call POST /v1/auth/upgrade to continue "
-                   "(mock upgrade for this demo -- wire up real billing before charging anyone).",
+                   "(mock upgrade for this demo. Wire up real billing before charging anyone).",
         )
     return route_request(req, user_id=user["id"])
 
 
 @app.get("/v1/stats", response_model=StatsResponse)
 def stats() -> StatsResponse:
-    """GLOBAL aggregate across every user -- the public 'leaderboard' view.
+    """GLOBAL aggregate across every user. The public 'leaderboard' view.
     For an individual user's own numbers, see /v1/stats/me instead."""
     return StatsResponse(**get_stats())
 
@@ -124,7 +127,7 @@ def stats() -> StatsResponse:
 @app.get("/v1/stats/me", response_model=StatsResponse)
 def stats_me(user: dict = Depends(require_user)) -> StatsResponse:
     """Same shape as /v1/stats, filtered to only the logged-in user's own
-    requests -- this is what fixes 'every user shows the same usage'."""
+    requests. This is what fixes 'every user shows the same usage'."""
     return StatsResponse(**get_stats(user_id=user["id"]))
 
 
@@ -179,7 +182,7 @@ def models() -> list[ModelInfo]:
 @app.get("/v1/consumption/daily", response_model=list[ConsumptionPoint])
 def consumption_daily(days: int = 30, model: str | None = None) -> list[ConsumptionPoint]:
     """One point per (day, model) for the last `days` days. Feeds the daily
-    line graph -- filter to one model with ?model=gpt-4o, or omit it to get
+    line graph. Filter to one model with ?model=gpt-4o, or omit it to get
     every model's series back at once (group by model_used client-side)."""
     return [ConsumptionPoint(**row) for row in get_daily_consumption(days=days, model=model)]
 
