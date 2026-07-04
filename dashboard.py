@@ -265,7 +265,16 @@ with left:
 
     col_a, col_b, col_c = st.columns(3)
     force = col_a.selectbox("Force route (optional)", ["auto", "cheap", "frontier"])
-    model_choice = col_b.selectbox("Force model (optional)", ["default for route"] + [m["name"] for m in models])
+    _api_label = {
+        "huggingface": "HF token", "openai": "OpenAI key", "anthropic": "Anthropic key",
+        "mistral": "server .env", "gemini": "server .env", "ollama": "local Ollama", "mock": "no key",
+    }
+    model_choice = col_b.selectbox(
+        "Force model (optional)",
+        ["default for route"] + [m["name"] for m in models],
+        format_func=lambda n: n if n == "default for route" else
+            f"{n} — needs {_api_label.get(next((m['api'] for m in models if m['name'] == n), 'mock'), '?')}",
+    )
     try:
         agents_catalog = httpx.get(f"{API_BASE}/v1/agents", timeout=5).json()
     except Exception:
@@ -277,14 +286,17 @@ with left:
 
     with st.expander("Run a real model (bring your own API key)"):
         st.caption(
-            "Pick an OpenAI or Anthropic model above, paste the matching key here, and Send will call "
-            "that model live instead of returning a mock reply. Keys are only used for this request — "
-            "they are not saved to disk, not logged, and not stored in this browser session beyond the "
-            "current page load."
+            "Pick a model above, paste the matching key here, and Send will call that model live "
+            "instead of returning a mock reply. Keys are only used for this request — they are not "
+            "saved to disk, not logged, and not stored in this browser session beyond the current "
+            "page load. No OpenAI/Anthropic account? Hugging Face tokens are free to create at "
+            "https://huggingface.co/settings/tokens and run the Llama / Qwen / DeepSeek / gpt-oss "
+            "models in the catalog."
         )
-        key_col1, key_col2 = st.columns(2)
+        key_col1, key_col2, key_col3 = st.columns(3)
         anthropic_key = key_col1.text_input("Anthropic API key", type="password", placeholder="sk-ant-…")
         openai_key = key_col2.text_input("OpenAI API key", type="password", placeholder="sk-…")
+        hf_key = key_col3.text_input("Hugging Face token", type="password", placeholder="hf_…")
 
     send_clicked = st.button("Send", type="primary")
 
@@ -300,6 +312,8 @@ with left:
             payload["anthropic_api_key"] = anthropic_key
         if openai_key:
             payload["openai_api_key"] = openai_key
+        if hf_key:
+            payload["hf_api_key"] = hf_key
 
         try:
             resp = httpx.post(f"{API_BASE}/v1/route", json=payload, headers=_auth_headers(), timeout=60)

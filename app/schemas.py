@@ -19,6 +19,11 @@ class RouteRequest(BaseModel):
     # never logged, never written to the DB, never echoed in the response.
     anthropic_api_key: Optional[str] = None
     openai_api_key: Optional[str] = None
+    # Free to obtain at https://huggingface.co/settings/tokens -- one token
+    # runs every model in MODEL_CATALOG tagged api="huggingface" via HF's
+    # Inference Providers router. Same bring-your-own-key handling as the
+    # two keys above: used only for this one call, never logged or stored.
+    hf_api_key: Optional[str] = None
 
 
 class RouteResponse(BaseModel):
@@ -84,6 +89,13 @@ class ModelInfo(BaseModel):
     name: str
     tier: Literal["cheap", "mid", "frontier"]
     provider: Literal["gpt", "gemini", "cloud"]
+    # Which backend app/providers.py::call_model() dispatches to for this
+    # model -- "anthropic" | "openai" | "mistral" | "gemini" | "huggingface"
+    # | "ollama" | "mock". The dashboard uses this to tell the person which
+    # key field (if any) a given model actually needs, since picking e.g.
+    # "gpt-3.5-turbo" needs an OpenAI key even if a Hugging Face token is
+    # also filled in -- each model only ever calls its own "api".
+    api: str
     input_price_per_1k: float
     output_price_per_1k: float
     context_window: int

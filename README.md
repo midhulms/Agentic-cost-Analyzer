@@ -25,10 +25,15 @@ and dollar amount is logged and shown back to you, not just estimated.
    score, and attributes it to one of six named agent personas (Compiler,
    Atlas, Prism, Voyager, Sparrow, Echo) chosen by what the prompt looks like
    it needs.
-3. **Calls the model for real** — plug in your own OpenAI or Anthropic API
-   key and it dispatches a genuine API call, not a canned response. No key?
-   It returns a clearly-labeled mock reply instead, so the whole flow still
-   works with zero setup.
+3. **Calls the model for real** — plug in your own OpenAI, Anthropic, or
+   **Hugging Face** API key and it dispatches a genuine API call, not a
+   canned response. Hugging Face is the free option: create a token at
+   [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens)
+   (no card required) and it runs real Llama, Qwen, DeepSeek, and gpt-oss
+   models through HF's [Inference Providers](https://huggingface.co/docs/inference-providers)
+   router — new accounts get free monthly credits. No key at all? It returns
+   a clearly-labeled mock reply instead, so the whole flow still works with
+   zero setup.
 4. **Counts tokens exactly** — via `tiktoken` when available, provider-reported
    usage when the API returns it, or a documented approximation as a last
    resort. It tells you which method was used for every single response.
@@ -120,6 +125,39 @@ guide, are in [`DEVELOPER.md`](./DEVELOPER.md).
 
 ---
 
+## Running a real model for free (Hugging Face)
+
+You don't need an OpenAI or Anthropic subscription to see live calls working:
+
+1. Go to [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens),
+   sign in (free account), and create a **fine-grained token** with the
+   "Make calls to Inference Providers" permission checked.
+2. Either:
+   - Paste it into the **Hugging Face token** field in the dashboard's key
+     bar and hit Dispatch — used only for that one request, never stored, or
+   - Put it in `.env` as `HF_API_KEY=hf_...` so every request can use it
+     without re-pasting.
+3. Pick one of the Hugging Face models in the "Force model" dropdown —
+   `meta-llama/Llama-3.1-8B-Instruct` (cheap tier), `Qwen/Qwen2.5-72B-Instruct`
+   or `meta-llama/Llama-3.3-70B-Instruct` (mid tier), or
+   `deepseek-ai/DeepSeek-V3-0324` / `openai/gpt-oss-120b` (frontier tier) —
+   and dispatch a prompt.
+4. The reply is tagged **LIVE** (not MOCK), token counts come straight from
+   the provider's own `usage` field (`provider-api-exact`), and the cost
+   ticket prices it at the underlying provider's normal per-token rate — HF
+   free-tier credits typically cover this at $0 actual cost while they last.
+
+Behind the scenes this hits `https://router.huggingface.co/v1/chat/completions`,
+an OpenAI-compatible endpoint HF exposes in front of multiple backend
+providers (Together, Fireworks, Cerebras, and others) — see
+`app/providers.py::call_huggingface_model` and the
+[Inference Providers docs](https://huggingface.co/docs/inference-providers)
+for details. A bad or missing token, an unavailable model, or a rate limit
+all come back as a clearly labeled `[hugging face call failed: ...]` message
+in the response instead of a crash, so you can see exactly what went wrong.
+
+---
+
 ## Billing / upgrades
 
 Every account gets 5 free `/v1/route` calls, then `POST /v1/auth/upgrade` is
@@ -134,7 +172,8 @@ Wiring up real Stripe billing is the natural next step; see
 
 FastAPI · SQLite · Streamlit · Plotly · `prometheus-client` · vanilla
 JS/HTML for the second dashboard · `tiktoken` for exact token counts ·
-OpenAI + Anthropic SDKs for live model calls.
+OpenAI + Anthropic SDKs and Hugging Face Inference Providers (free tier)
+for live model calls.
 
 ## License
 

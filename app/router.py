@@ -63,7 +63,12 @@ def route_request(req: RouteRequest, user_id: int | None = None) -> RouteRespons
     # model in the dashboard (e.g. gpt-4o, claude-sonnet-5) actually run
     # that model instead of just relabeling a generic mock response.
     text, in_tok, out_tok, method, latency_ms = timed_call(
-        lambda p, m: call_model(p, m, anthropic_key=req.anthropic_api_key, openai_key=req.openai_api_key),
+        lambda p, m: call_model(
+            p, m,
+            anthropic_key=req.anthropic_api_key,
+            openai_key=req.openai_api_key,
+            hf_key=req.hf_api_key,
+        ),
         req.prompt, model_used,
     )
     # "provider-api-exact" covers OpenAI/Anthropic/Mistral, which report
@@ -72,7 +77,7 @@ def route_request(req: RouteRequest, user_id: int | None = None) -> RouteRespons
     # anything that isn't one of providers.py's own bracketed
     # mock/failure/not-configured messages as a genuine live reply.
     is_live_call = method == "provider-api-exact" or (
-        api_for(model_used) == "ollama" and not text.startswith("[")
+        api_for(model_used) in ("ollama", "huggingface") and not text.startswith("[")
     )
 
     total_tokens = in_tok + out_tok

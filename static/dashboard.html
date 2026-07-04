@@ -65,6 +65,7 @@
 
   #keyBar{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;}
   #keyBar input{width:230px;background:var(--panel);border:1px solid var(--border);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:12px;padding:7px 10px;border-radius:8px;}
+  #keyBar input.key-needed{border-color:#e0607a;box-shadow:0 0 0 1px #e0607a55;}
   #keyBar label{font-size:11px;color:var(--dim);}
 
   #streamlitBar{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;}
@@ -272,7 +273,9 @@
     <input id="anthropicKey" type="password" placeholder="sk-ant-…" spellcheck="false" autocomplete="off" />
     <label for="openaiKey">OpenAI key</label>
     <input id="openaiKey" type="password" placeholder="sk-…" spellcheck="false" autocomplete="off" />
-    <span id="keyStatus" class="mono">Keys stay in this browser tab and are only sent with a dispatch to run that one request live — never stored server-side or in the log.</span>
+    <label for="hfKey">Hugging Face token <a href="https://huggingface.co/settings/tokens" target="_blank" rel="noopener" class="btnlink" style="font-weight:400;">(get one free ↗)</a></label>
+    <input id="hfKey" type="password" placeholder="hf_…" spellcheck="false" autocomplete="off" />
+    <span id="keyStatus" class="mono">Keys stay in this browser tab and are only sent with a dispatch to run that one request live — never stored server-side or in the log. A Hugging Face token is free to create and runs the Llama / Qwen / DeepSeek / gpt-oss models below.</span>
   </div>
 
   <div id="scopeBar" class="mono">
@@ -305,6 +308,7 @@
           <select id="forceAgent"><option value="">Auto-pick agent</option></select>
           <button class="send-btn" id="sendBtn">Dispatch →</button>
         </div>
+        <div class="hint" id="modelKeyHint">No model forced -- the router picks a default based on the auto-detected route.</div>
         <div class="hint">Token counts below use tiktoken's cl100k_base tokenizer — a free, open, offline encoder (same family GPT-3.5/4 use) — so counts are exact, not guessed, even without any paid API call.</div>
       </div>
       <div class="card chat-card-wrap">
@@ -933,10 +937,75 @@ async function refreshAll(){
 function populateModelSelect(models){
   const sel = document.getElementById('forceModel');
   const prev = sel.value;
-  sel.innerHTML = '<option value="">Default model for route</option>' +
-    models.map(m => `<option value="${m.name}">${m.name} (${m.tier})</option>`).join('');
+  const API_LABELS = {
+    huggingface: 'Hugging Face (free token)',
+    openai: 'OpenAI (needs OpenAI key)',
+    anthropic: 'Anthropic (needs Anthropic key)',
+    mistral: 'Mistral (needs .env key)',
+    gemini: 'Gemini (needs .env key)',
+    ollama: 'Local Ollama (no key needed)',
+    mock: 'Mock (no key -- for demo only)',
+  };
+  // Group by which backend/key each model actually calls, so it's obvious
+  // at a glance which models a Hugging Face token will (and won't) run.
+  const groups = {};
+  models.forEach(m => {
+    const key = m.api || 'mock';
+    (groups[key] = groups[key] || []).push(m);
+  });
+  const order = ['huggingface', 'openai', 'anthropic', 'mistral', 'gemini', 'ollama', 'mock'];
+  let html = '<option value="">Default model for route</option>';
+  order.filter(k => groups[k]).forEach(k => {
+    html += `<optgroup label="${API_LABELS[k] || k}">` +
+      groups[k].map(m => `<option value="${m.name}" data-api="${m.api}">${m.name} (${m.tier})</option>`).join('') +
+      `</optgroup>`;
+  });
+  sel.innerHTML = html;
   if(prev) sel.value = prev;
+  updateModelKeyHint();
 }
+
+function updateModelKeyHint(){
+  const sel = document.getElementById('forceModel');
+  const hint = document.getElementById('modelKeyHint');
+  if(!hint) return;
+  const opt = sel.options[sel.selectedIndex];
+  const api = opt ? opt.getAttribute('data-api') : null;
+  const FIELD_FOR_API = { huggingface: 'hfKey', openai: 'openaiKey', anthropic: 'anthropicKey' };
+  const LABEL_FOR_API = {
+    huggingface: 'the Hugging Face token field',
+    openai: 'the OpenAI API key field',
+    anthropic: 'the Anthropic key field',
+    mistral: 'MISTRAL_API_KEY in .env on the server (no per-request field yet)',
+    gemini: 'GEMINI_API_KEY in .env on the server (no per-request field yet)',
+    ollama: 'nothing -- runs against a local Ollama server',
+    mock: 'nothing -- this always returns a mock reply',
+  };
+  ['hfKey', 'openaiKey', 'anthropicKey'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.classList.remove('key-needed');
+  });
+  if(!api){
+    hint.textContent = 'No model forced -- the router picks a default based on the auto-detected route.';
+    return;
+  }
+  const fieldId = FIELD_FOR_API[api];
+  if(fieldId){
+    const filled = document.getElementById(fieldId).value.trim().length > 0;
+    hint.textContent = `This model needs ${LABEL_FOR_API[api]}${filled ? ' -- looks filled in.' : ' -- currently empty, so it will return a labeled mock reply.'}`;
+    hint.style.color = filled ? 'var(--teal)' : 'var(--rose, #e07)';
+    const el = document.getElementById(fieldId);
+    if(el && !filled) el.classList.add('key-needed');
+  }else{
+    hint.textContent = `This model needs ${LABEL_FOR_API[api] || api}.`;
+    hint.style.color = 'var(--muted)';
+  }
+}
+document.getElementById('forceModel').addEventListener('change', updateModelKeyHint);
+['anthropicKey','openaiKey','hfKey'].forEach(id=>{
+  const el = document.getElementById(id);
+  if(el) el.addEventListener('input', updateModelKeyHint);
+});
 
 function populateAgentSelect(agents){
   const sel = document.getElementById('forceAgent');
@@ -984,11 +1053,13 @@ document.getElementById('sendBtn').addEventListener('click', async () => {
   const fa = document.getElementById('forceAgent').value;
   const ak = document.getElementById('anthropicKey').value.trim();
   const ok = document.getElementById('openaiKey').value.trim();
+  const hk = document.getElementById('hfKey').value.trim();
   if(fr !== 'auto') payload.force_route = fr;
   if(fm) payload.force_model = fm;
   if(fa) payload.force_agent = fa;
   if(ak) payload.anthropic_api_key = ak;
   if(ok) payload.openai_api_key = ok;
+  if(hk) payload.hf_api_key = hk;
   try{
     const r = await fetch(API_BASE + '/v1/route', {
       method:'POST',

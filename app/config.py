@@ -22,12 +22,23 @@ class Settings(BaseSettings):
     cheap_model_name: str = "llama3.1:8b"
     ollama_base_url: str = "http://localhost:11434"
     mistral_api_key: str = ""
+    gemini_api_key: str = ""
 
     # --- frontier path ---
     frontier_provider: str = "mock"       # "mock" | "anthropic" | "openai"
     frontier_model_name: str = "claude-sonnet-5"
     anthropic_api_key: str = ""
     openai_api_key: str = ""
+
+    # --- Hugging Face Inference Providers (free tier available) ---
+    # Get a token at https://huggingface.co/settings/tokens (fine-grained,
+    # "Make calls to Inference Providers" permission). This single token
+    # works across every model in MODEL_CATALOG with api="huggingface" --
+    # HF's router picks the actual backend provider (Together, Fireworks,
+    # Cerebras, etc.) for you. New accounts get free monthly inference
+    # credits, so this is the easiest way to run this app against a real
+    # frontier-class model with zero cost.
+    hf_api_key: str = ""
 
     # --- storage ---
     # Relative to the app's working directory (/app in Docker). Deliberately
@@ -75,6 +86,28 @@ MODEL_CATALOG = {
     "gpt-4o":           {"tier": "frontier", "provider": "gpt",      "api": "openai",    "input": 0.0025, "output": 0.01,   "context_window": 128_000},
     "gemini-1.5-pro":   {"tier": "frontier", "provider": "gemini",   "api": "gemini",    "input": 0.00125, "output": 0.005,  "context_window": 2_000_000},
     "mock-frontier":    {"tier": "frontier", "provider": "cloud",    "api": "mock",      "input": 0.003,  "output": 0.015,  "context_window": 200_000},
+
+    # --- Hugging Face Inference Providers -- one free token runs all of
+    # these (https://huggingface.co/settings/tokens). "input"/"output"
+    # prices are the going per-1K rate the underlying backend provider
+    # HF's router selects (Together/Fireworks/Cerebras/etc.) typically
+    # charges -- HF passes it through with no markup. New accounts get
+    # free monthly credits that cover a meaningful number of requests at
+    # these rates, so real cost is commonly $0 while credits last; the
+    # dashboard still prices every call so you can see what it *would*
+    # cost once credits run out. "provider" is grouped as "cloud" (open
+    # weight) to match the existing dashboard filter.
+    "meta-llama/Llama-3.1-8B-Instruct":  {"tier": "cheap",    "provider": "cloud", "api": "huggingface", "input": 0.00005, "output": 0.00008, "context_window": 128_000},
+    "Qwen/Qwen2.5-72B-Instruct":         {"tier": "mid",      "provider": "cloud", "api": "huggingface", "input": 0.0004,  "output": 0.0004,  "context_window": 32_000},
+    "meta-llama/Llama-3.3-70B-Instruct": {"tier": "mid",      "provider": "cloud", "api": "huggingface", "input": 0.0004,  "output": 0.0004,  "context_window": 128_000},
+    "deepseek-ai/DeepSeek-V3-0324":      {"tier": "frontier", "provider": "cloud", "api": "huggingface", "input": 0.00027, "output": 0.0011,  "context_window": 64_000},
+    "openai/gpt-oss-120b":               {"tier": "frontier", "provider": "cloud", "api": "huggingface", "input": 0.00015, "output": 0.0006,  "context_window": 128_000},
+    "moonshotai/Kimi-K2-Instruct-0905":  {"tier": "frontier", "provider": "cloud", "api": "huggingface", "input": 0.00055, "output": 0.0022,  "context_window": 262_000},
+    # Z.ai's flagship reasoning/coding model, confirmed live on HF Inference
+    # Providers (https://huggingface.co/docs/inference-providers/providers/zai-org)
+    # -- the ":zai-org" suffix pins the routing policy to Z.ai's own backend
+    # (as shown in their docs) instead of leaving it to HF's default picker.
+    "zai-org/GLM-5.2:zai-org":           {"tier": "frontier", "provider": "cloud", "api": "huggingface", "input": 0.0006,  "output": 0.0022,  "context_window": 1_000_000},
 }
 
 

@@ -34,6 +34,7 @@ Both talk to the **same backend and the same user accounts** — that's what mak
    | `COMPLEXITY_THRESHOLD` | `0.55` |
    | `ANTHROPIC_API_KEY` | *(only if `FRONTIER_PROVIDER=anthropic`)* |
    | `OPENAI_API_KEY` | *(only if you use OpenAI)* |
+   | `HF_API_KEY` | *(free — get one at [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens); not tied to `CHEAP_PROVIDER`/`FRONTIER_PROVIDER`, just pick a `meta-llama/...`, `Qwen/...`, `deepseek-ai/...`, or `openai/gpt-oss-*` model via "Force model" in the dashboard, or paste the token directly into the dashboard's key bar per-request instead of setting it here)* |
 
 4. **Deploy.** First deploy takes a few minutes (Docker build). When it's green, confirm:
    ```

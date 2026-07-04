@@ -167,6 +167,7 @@ def models() -> list[ModelInfo]:
             name=name,
             tier=info["tier"],
             provider=info["provider"],
+            api=info["api"],
             input_price_per_1k=info["input"],
             output_price_per_1k=info["output"],
             context_window=info["context_window"],

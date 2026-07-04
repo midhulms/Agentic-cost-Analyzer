@@ -143,14 +143,91 @@ def call_anthropic_model(prompt: str, model_name: str | None = None, api_key: st
 
 
 def call_gemini_model(prompt: str, model_name: str | None = None, api_key: str | None = None) -> tuple[str, int, int, str]:
-    """Placeholder for a real Gemini call -- not wired up yet, so this
-    always returns a clearly-labeled mock reply rather than silently
-    pretending to be live. Swap in a real generativelanguage.googleapis.com
-    call here (with its own key field) when you're ready to go live."""
-    text = "[gemini live calls aren't implemented yet -- this is still a mock reply] " + _mock_reply(prompt, "gemini")
-    in_tok, method = count_tokens(prompt)
-    out_tok, _ = count_tokens(text)
-    return text, in_tok, out_tok, method
+    """Real call to the Google Gemini API (generateContent)."""
+    model_name = model_name or "gemini-1.5-flash"
+    key = api_key or settings.gemini_api_key
+    try:
+        resp = httpx.post(
+            f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent",
+            params={"key": key},
+            json={"contents": [{"parts": [{"text": prompt}]}]},
+            timeout=60,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        text = data["candidates"][0]["content"]["parts"][0]["text"]
+        usage = data.get("usageMetadata") or {}
+        in_tok, out_tok = usage.get("promptTokenCount"), usage.get("candidatesTokenCount")
+        if in_tok is not None and out_tok is not None:
+            return text, in_tok, out_tok, "provider-api-exact"
+        in_tok, method = count_tokens(prompt)
+        out_tok, _ = count_tokens(text)
+        return text, in_tok, out_tok, method
+    except Exception as exc:
+        text = f"[gemini call failed: {exc}] " + _mock_reply(prompt, "cheap")
+        in_tok, method = count_tokens(prompt)
+        out_tok, _ = count_tokens(text)
+        return text, in_tok, out_tok, method
+
+
+def call_huggingface_model(prompt: str, model_name: str | None = None, api_key: str | None = None) -> tuple[str, int, int, str]:
+    """Real call to Hugging Face's Inference Providers router -- an
+    OpenAI-compatible chat completions endpoint that fronts many backend
+    providers (Together, Fireworks, Cerebras, Novita, ...) behind a single
+    free-to-obtain HF token. Docs: https://huggingface.co/docs/inference-providers
+
+    model_name should be the HF model id, e.g. "meta-llama/Llama-3.1-8B-Instruct"
+    or "deepseek-ai/DeepSeek-V3-0324". You can optionally suffix a routing
+    policy (":fastest" | ":cheapest" | ":preferred") -- if none is given,
+    HF defaults to ":fastest".
+    """
+    model_name = model_name or "meta-llama/Llama-3.1-8B-Instruct"
+    key = api_key or settings.hf_api_key
+    if not key:
+        text = f"[no Hugging Face API token configured -- add one to run '{model_name}' live] " + _mock_reply(
+            prompt, "frontier" if MODEL_CATALOG.get(model_name, {}).get("tier") == "frontier" else "cheap"
+        )
+        in_tok, method = count_tokens(prompt)
+        out_tok, _ = count_tokens(text)
+        return text, in_tok, out_tok, method
+    try:
+        resp = httpx.post(
+            "https://router.huggingface.co/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {key}",
+                "Content-Type": "application/json",
+            },
+            json={"model": model_name, "messages": [{"role": "user", "content": prompt}]},
+            timeout=120,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        text = data["choices"][0]["message"]["content"]
+        usage = data.get("usage") or {}
+        in_tok, out_tok = usage.get("prompt_tokens"), usage.get("completion_tokens")
+        if in_tok is not None and out_tok is not None:
+            return text, in_tok, out_tok, "provider-api-exact"
+        in_tok, method = count_tokens(prompt)
+        out_tok, _ = count_tokens(text)
+        return text, in_tok, out_tok, method
+    except httpx.HTTPStatusError as exc:
+        # Surface the actual HF error body (bad token, rate limit, model
+        # needs a warm-up, etc.) instead of a generic message, since this
+        # is almost always a token/permission/model-id issue the person
+        # can fix themselves.
+        try:
+            detail = exc.response.json().get("error", exc.response.text)
+        except Exception:
+            detail = exc.response.text
+        text = f"[hugging face call failed: HTTP {exc.response.status_code} -- {detail}] " + _mock_reply(prompt, "cheap")
+        in_tok, method = count_tokens(prompt)
+        out_tok, _ = count_tokens(text)
+        return text, in_tok, out_tok, method
+    except Exception as exc:
+        text = f"[hugging face call failed: {exc}] " + _mock_reply(prompt, "cheap")
+        in_tok, method = count_tokens(prompt)
+        out_tok, _ = count_tokens(text)
+        return text, in_tok, out_tok, method
 
 
 def call_ollama_model(prompt: str, model_name: str | None = None) -> tuple[str, int, int, str]:
@@ -180,6 +257,7 @@ def call_model(
     model_name: str,
     anthropic_key: str | None = None,
     openai_key: str | None = None,
+    hf_key: str | None = None,
 ) -> tuple[str, int, int, str]:
     """Single dispatch point used by the router: looks up which real API a
     model belongs to (MODEL_CATALOG[model_name]['api']) and calls it if a
@@ -193,7 +271,8 @@ def call_model(
         key = anthropic_key or settings.anthropic_api_key
         if key:
             return call_anthropic_model(prompt, model_name, api_key=key)
-        text = f"[no Anthropic API key configured -- add one to run '{model_name}' live] " + _mock_reply(prompt, "frontier")
+        flavor = "frontier" if MODEL_CATALOG.get(model_name, {}).get("tier") == "frontier" else "cheap"
+        text = f"[no Anthropic API key configured -- add one to run '{model_name}' live] " + _mock_reply(prompt, flavor)
         in_tok, method = count_tokens(prompt)
         out_tok, _ = count_tokens(text)
         return text, in_tok, out_tok, method
@@ -202,7 +281,8 @@ def call_model(
         key = openai_key or settings.openai_api_key
         if key:
             return call_openai_model(prompt, model_name, api_key=key)
-        text = f"[no OpenAI API key configured -- add one to run '{model_name}' live] " + _mock_reply(prompt, "frontier")
+        flavor = "frontier" if MODEL_CATALOG.get(model_name, {}).get("tier") == "frontier" else "cheap"
+        text = f"[no OpenAI API key configured -- add one to run '{model_name}' live] " + _mock_reply(prompt, flavor)
         in_tok, method = count_tokens(prompt)
         out_tok, _ = count_tokens(text)
         return text, in_tok, out_tok, method
@@ -210,7 +290,18 @@ def call_model(
     if api == "mistral":
         if settings.mistral_api_key:
             return call_mistral_model(prompt, model_name)
-        text = f"[no Mistral API key configured -- add one to run '{model_name}' live] " + _mock_reply(prompt, "cheap")
+        flavor = "frontier" if MODEL_CATALOG.get(model_name, {}).get("tier") == "frontier" else "cheap"
+        text = f"[no Mistral API key configured -- add one to run '{model_name}' live] " + _mock_reply(prompt, flavor)
+        in_tok, method = count_tokens(prompt)
+        out_tok, _ = count_tokens(text)
+        return text, in_tok, out_tok, method
+
+    if api == "huggingface":
+        key = hf_key or settings.hf_api_key
+        if key:
+            return call_huggingface_model(prompt, model_name, api_key=key)
+        flavor = "frontier" if MODEL_CATALOG.get(model_name, {}).get("tier") == "frontier" else "cheap"
+        text = f"[no Hugging Face API token configured -- add one to run '{model_name}' live] " + _mock_reply(prompt, flavor)
         in_tok, method = count_tokens(prompt)
         out_tok, _ = count_tokens(text)
         return text, in_tok, out_tok, method
@@ -219,7 +310,13 @@ def call_model(
         return call_ollama_model(prompt, model_name)
 
     if api == "gemini":
-        return call_gemini_model(prompt, model_name)
+        if settings.gemini_api_key:
+            return call_gemini_model(prompt, model_name)
+        flavor = "frontier" if MODEL_CATALOG.get(model_name, {}).get("tier") == "frontier" else "cheap"
+        text = f"[no Gemini API key configured -- add one to run '{model_name}' live] " + _mock_reply(prompt, flavor)
+        in_tok, method = count_tokens(prompt)
+        out_tok, _ = count_tokens(text)
+        return text, in_tok, out_tok, method
 
     # api == "mock", or an unrecognized model name
     flavor = "frontier" if MODEL_CATALOG.get(model_name, {}).get("tier") == "frontier" else "cheap"
