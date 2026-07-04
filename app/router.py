@@ -22,7 +22,7 @@ def _cost_breakdown(model_name: str, input_tokens: int, output_tokens: int) -> d
     }
 
 
-def route_request(req: RouteRequest) -> RouteResponse:
+def route_request(req: RouteRequest, user_id: int | None = None) -> RouteResponse:
     breakdown = score_with_explanation(req.prompt)
     complexity = breakdown["score"]
 
@@ -104,6 +104,7 @@ def route_request(req: RouteRequest) -> RouteResponse:
         baseline_cost_usd=baseline_cost,
         latency_ms=latency_ms,
         prompt=req.prompt,
+        user_id=user_id,
     )
 
     # Same numbers just logged to SQLite, also pushed to Prometheus so

@@ -103,11 +103,21 @@ if st.session_state["token"] is None:
     st.stop()
 
 # ---------------------------------------------------------------------------
-# Stats / charts (read-only, no login required by the API itself, but we
-# keep them behind the gate above so the whole page has one consistent flow)
+# Stats / charts. Previously every account saw the same numbers here because
+# these all hit the GLOBAL endpoints (/v1/stats, /v1/recent, ...), which
+# aggregate every user's requests together. Default view is now each user's
+# own data via the authenticated /me endpoints; the toggle below lets anyone
+# switch back to the combined "everyone" view if they want it.
 # ---------------------------------------------------------------------------
+view_choice = st.radio("View", ["My usage", "Everyone (global demo)"], horizontal=True)
+scope_me = view_choice == "My usage"
+stats_path = "/v1/stats/me" if scope_me else "/v1/stats"
+recent_path = "/v1/recent/me" if scope_me else "/v1/recent"
+daily_path = "/v1/consumption/daily/me" if scope_me else "/v1/consumption/daily"
+monthly_path = "/v1/consumption/monthly/me" if scope_me else "/v1/consumption/monthly"
+
 try:
-    stats = httpx.get(f"{API_BASE}/v1/stats", timeout=5).json()
+    stats = httpx.get(f"{API_BASE}{stats_path}", headers=_auth_headers(), timeout=5).json()
 except Exception as exc:
     st.error(f"Could not reach the API at {API_BASE}. Is it running? ({exc})")
     st.stop()
@@ -157,9 +167,9 @@ period_choice = st.radio("Granularity", ["Daily", "Monthly"], horizontal=True)
 if selected_models:
     try:
         if period_choice == "Daily":
-            resp = httpx.get(f"{API_BASE}/v1/consumption/daily", params={"days": 30}, timeout=15)
+            resp = httpx.get(f"{API_BASE}{daily_path}", params={"days": 30}, headers=_auth_headers(), timeout=15)
         else:
-            resp = httpx.get(f"{API_BASE}/v1/consumption/monthly", params={"months": 12}, timeout=15)
+            resp = httpx.get(f"{API_BASE}{monthly_path}", params={"months": 12}, headers=_auth_headers(), timeout=15)
         resp.raise_for_status()
         rows = resp.json()
     except Exception as exc:
@@ -295,9 +305,9 @@ with right:
 
 st.subheader("Recent requests")
 try:
-    recent = httpx.get(f"{API_BASE}/v1/recent", timeout=5).json()
+    recent = httpx.get(f"{API_BASE}{recent_path}", headers=_auth_headers(), timeout=5).json()
 except Exception as exc:
-    st.warning(f"Could not load recent requests from {API_BASE}/v1/recent ({exc}).")
+    st.warning(f"Could not load recent requests from {API_BASE}{recent_path} ({exc}).")
     recent = []
 if recent:
     df = pd.DataFrame(recent)[

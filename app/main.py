@@ -111,12 +111,21 @@ def route(req: RouteRequest, user: dict = Depends(require_user)) -> RouteRespons
             detail="Free limit reached (5 requests). Call POST /v1/auth/upgrade to continue "
                    "(mock upgrade for this demo -- wire up real billing before charging anyone).",
         )
-    return route_request(req)
+    return route_request(req, user_id=user["id"])
 
 
 @app.get("/v1/stats", response_model=StatsResponse)
 def stats() -> StatsResponse:
+    """GLOBAL aggregate across every user -- the public 'leaderboard' view.
+    For an individual user's own numbers, see /v1/stats/me instead."""
     return StatsResponse(**get_stats())
+
+
+@app.get("/v1/stats/me", response_model=StatsResponse)
+def stats_me(user: dict = Depends(require_user)) -> StatsResponse:
+    """Same shape as /v1/stats, filtered to only the logged-in user's own
+    requests -- this is what fixes 'every user shows the same usage'."""
+    return StatsResponse(**get_stats(user_id=user["id"]))
 
 
 @app.get("/v1/stats/agents", response_model=list[AgentStat])
@@ -124,14 +133,29 @@ def stats_by_agent() -> list[AgentStat]:
     return [AgentStat(**row) for row in get_stats_by_agent()]
 
 
+@app.get("/v1/stats/agents/me", response_model=list[AgentStat])
+def stats_by_agent_me(user: dict = Depends(require_user)) -> list[AgentStat]:
+    return [AgentStat(**row) for row in get_stats_by_agent(user_id=user["id"])]
+
+
 @app.get("/v1/stats/models", response_model=list[ModelStat])
 def stats_by_model() -> list[ModelStat]:
     return [ModelStat(**row) for row in get_stats_by_model()]
 
 
+@app.get("/v1/stats/models/me", response_model=list[ModelStat])
+def stats_by_model_me(user: dict = Depends(require_user)) -> list[ModelStat]:
+    return [ModelStat(**row) for row in get_stats_by_model(user_id=user["id"])]
+
+
 @app.get("/v1/recent")
 def recent(limit: int = 25) -> list:
     return get_recent(limit)
+
+
+@app.get("/v1/recent/me")
+def recent_me(limit: int = 25, user: dict = Depends(require_user)) -> list:
+    return get_recent(limit, user_id=user["id"])
 
 
 @app.get("/v1/models", response_model=list[ModelInfo])
@@ -159,10 +183,20 @@ def consumption_daily(days: int = 30, model: str | None = None) -> list[Consumpt
     return [ConsumptionPoint(**row) for row in get_daily_consumption(days=days, model=model)]
 
 
+@app.get("/v1/consumption/daily/me", response_model=list[ConsumptionPoint])
+def consumption_daily_me(days: int = 30, model: str | None = None, user: dict = Depends(require_user)) -> list[ConsumptionPoint]:
+    return [ConsumptionPoint(**row) for row in get_daily_consumption(days=days, model=model, user_id=user["id"])]
+
+
 @app.get("/v1/consumption/monthly", response_model=list[ConsumptionPoint])
 def consumption_monthly(months: int = 12, model: str | None = None) -> list[ConsumptionPoint]:
     """Same shape as /v1/consumption/daily, bucketed by calendar month."""
     return [ConsumptionPoint(**row) for row in get_monthly_consumption(months=months, model=model)]
+
+
+@app.get("/v1/consumption/monthly/me", response_model=list[ConsumptionPoint])
+def consumption_monthly_me(months: int = 12, model: str | None = None, user: dict = Depends(require_user)) -> list[ConsumptionPoint]:
+    return [ConsumptionPoint(**row) for row in get_monthly_consumption(months=months, model=model, user_id=user["id"])]
 
 
 @app.get("/v1/agents", response_model=list[AgentInfo])

@@ -73,6 +73,11 @@
   #authBar button:hover{color:var(--text);border-color:#3a4256;}
   #authLoggedIn{display:inline-flex;gap:8px;align-items:center;}
   #authStatus{color:var(--rose,#e8748a);font-size:12px;}
+
+  #scopeBar{display:flex;gap:8px;align-items:center;margin-bottom:14px;color:var(--dim);font-size:12.5px;}
+  #scopeBar button{background:var(--panel-alt);border:1px solid var(--border);color:var(--muted);font-size:12.5px;padding:6px 12px;border-radius:20px;cursor:pointer;}
+  #scopeBar button.scope-active{color:var(--text);border-color:#4FD1C5;background:rgba(79,209,197,0.12);}
+  #scopeBar button:hover{color:var(--text);}
   #keyStatus{font-size:11px;color:var(--dim);}
   .live-badge{display:inline-block;padding:1px 7px;border-radius:5px;font-size:10px;margin-left:6px;background:rgba(79,216,196,0.15);color:var(--teal);}
   .mock-badge{display:inline-block;padding:1px 7px;border-radius:5px;font-size:10px;margin-left:6px;background:rgba(139,148,163,0.15);color:var(--muted);}
@@ -217,6 +222,12 @@
     <span id="keyStatus" class="mono">Keys stay in this browser tab and are only sent with a dispatch to run that one request live — never stored server-side or in the log.</span>
   </div>
 
+  <div id="scopeBar" class="mono">
+    <span>View:</span>
+    <button id="scopeMeBtn" class="scope-active">My usage</button>
+    <button id="scopeGlobalBtn">Everyone (global demo)</button>
+  </div>
+
   <div class="stat-row" id="statRow"></div>
 
   <section>
@@ -354,11 +365,27 @@ let agentsCatalog = [];
 let modelsCatalog = [];
 let charts = {};
 
-async function jget(path){
-  const r = await fetch(API_BASE + path);
+async function jget(path, withAuth){
+  const r = await fetch(API_BASE + path, withAuth ? { headers: authHeaders() } : undefined);
   if(!r.ok) throw new Error(path + ' -> ' + r.status);
   return r.json();
 }
+
+// 'me' (default) or 'global' -- see #scopeBar in the HTML. Declared here,
+// before the auth login/logout handlers further down that read/reset it,
+// so there's no reference-before-declaration error.
+let usageScope = 'me';
+
+function updateScopeButtons(){
+  document.getElementById('scopeMeBtn').classList.toggle('scope-active', usageScope === 'me');
+  document.getElementById('scopeGlobalBtn').classList.toggle('scope-active', usageScope === 'global');
+}
+document.getElementById('scopeMeBtn').addEventListener('click', () => {
+  usageScope = 'me'; updateScopeButtons(); refreshAll();
+});
+document.getElementById('scopeGlobalBtn').addEventListener('click', () => {
+  usageScope = 'global'; updateScopeButtons(); refreshAll();
+});
 
 // --- Auth: 5 free /v1/route calls per account, then /v1/auth/upgrade is
 // required (mock upgrade for this demo -- see app/auth.py). Token persists
@@ -416,6 +443,8 @@ async function authRequest(path, email, password){
   statusEl.textContent = '';
   resetTicketPanel();  // fresh account, fresh page -- don't show the previous account's last result
   renderAuthBar();
+  usageScope = 'me'; updateScopeButtons();
+  refreshAll();  // pull in this account's own usage now that we have a token
 }
 
 document.getElementById('authLoginBtn').addEventListener('click', () => {
@@ -430,6 +459,8 @@ document.getElementById('authLogoutBtn').addEventListener('click', () => {
   authToken = null; authUser = null; localStorage.removeItem('acr_token');
   resetTicketPanel();
   renderAuthBar();
+  usageScope = 'global'; updateScopeButtons();
+  refreshAll();  // no token anymore -- fall back to the global demo view
 });
 document.getElementById('authUpgradeBtn').addEventListener('click', async () => {
   const r = await fetch(API_BASE + '/v1/auth/upgrade', { method:'POST', headers: authHeaders() });
@@ -437,6 +468,7 @@ document.getElementById('authUpgradeBtn').addEventListener('click', async () => 
 });
 
 renderAuthBar();
+updateScopeButtons();
 refreshMe();
 
 function renderStats(s){
@@ -701,13 +733,22 @@ document.querySelectorAll('.provider-toggle').forEach(el => el.addEventListener(
 async function refreshAll(){
   document.getElementById('apiStatus').textContent = 'loading…';
 
+  // "My usage" only works once logged in (the /me endpoints require a
+  // token) -- fall back to the global endpoints for a logged-out visitor
+  // so the page still shows something instead of erroring.
+  const scoped = usageScope === 'me' && !!authToken;
+  const statsPath = scoped ? '/v1/stats/me' : '/v1/stats';
+  const agentStatsPath = scoped ? '/v1/stats/agents/me' : '/v1/stats/agents';
+  const modelStatsPath = scoped ? '/v1/stats/models/me' : '/v1/stats/models';
+  const recentPath = scoped ? '/v1/recent/me?limit=20' : '/v1/recent?limit=20';
+
   // Each endpoint is fetched independently so one failing call (e.g. a
   // fresh DB with no /v1/recent rows yet, or a stale /v1/stats/models)
   // doesn't blank out the sections that succeeded. Promise.all would
   // reject the *entire* batch on a single failure -- allSettled won't.
   const [statsR, agentsR, agentStatsR, modelStatsR, recentR, modelsR] = await Promise.allSettled([
-    jget('/v1/stats'), jget('/v1/agents'), jget('/v1/stats/agents'),
-    jget('/v1/stats/models'), jget('/v1/recent?limit=20'), jget('/v1/models'),
+    jget(statsPath, scoped), jget('/v1/agents'), jget(agentStatsPath, scoped),
+    jget(modelStatsPath, scoped), jget(recentPath, scoped), jget('/v1/models'),
   ]);
 
   const failures = [];
@@ -718,15 +759,15 @@ async function refreshAll(){
     return fallback;
   };
 
-  const stats = val(statsR, '/v1/stats', {
+  const stats = val(statsR, statsPath, {
     total_requests:0, cheap_requests:0, frontier_requests:0, total_cost_usd:0,
     baseline_cost_usd:0, estimated_savings_usd:0, estimated_savings_pct:0,
     avg_latency_ms:0, total_input_tokens:0, total_output_tokens:0, total_tokens:0,
   });
   const agents = val(agentsR, '/v1/agents', []);
-  const agentStats = val(agentStatsR, '/v1/stats/agents', []);
-  const modelStats = val(modelStatsR, '/v1/stats/models', []);
-  const recent = val(recentR, '/v1/recent', []);
+  const agentStats = val(agentStatsR, agentStatsPath, []);
+  const modelStats = val(modelStatsR, modelStatsPath, []);
+  const recent = val(recentR, recentPath, []);
   const models = val(modelsR, '/v1/models', []);
 
   agentsCatalog = agents;
