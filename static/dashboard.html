@@ -67,12 +67,47 @@
   #keyBar input{width:230px;background:var(--panel);border:1px solid var(--border);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:12px;padding:7px 10px;border-radius:8px;}
   #keyBar label{font-size:11px;color:var(--dim);}
 
+  #streamlitBar{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;}
+  #streamlitBar input{flex:1;max-width:380px;background:var(--panel);border:1px solid var(--border);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:12.5px;padding:8px 10px;border-radius:8px;}
+  #streamlitBar button{background:var(--panel-alt);border:1px solid var(--border);color:var(--muted);font-size:12.5px;padding:8px 12px;border-radius:8px;cursor:pointer;}
+  #streamlitBar button:hover{color:var(--text);border-color:#3a4256;}
+  #streamlitHint{font-size:11px;color:var(--dim);}
+
   #authBar{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;}
   #authBar input{background:var(--panel);border:1px solid var(--border);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:12.5px;padding:8px 10px;border-radius:8px;width:170px;}
   #authBar button{background:var(--panel-alt);border:1px solid var(--border);color:var(--muted);font-size:12.5px;padding:8px 12px;border-radius:8px;cursor:pointer;}
   #authBar button:hover{color:var(--text);border-color:#3a4256;}
-  #authLoggedIn{display:inline-flex;gap:8px;align-items:center;}
+  #authLoggedIn{display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  #authLoggedOut{display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap;}
   #authStatus{color:var(--rose,#e8748a);font-size:12px;}
+  #authLockedMsg{color:var(--dim);}
+  .btnlink{background:var(--panel-alt);border:1px solid var(--border);color:var(--teal);font-size:12.5px;padding:8px 12px;border-radius:8px;cursor:pointer;text-decoration:none;display:inline-block;}
+  .btnlink:hover{border-color:#3a4256;filter:brightness(1.1);}
+  .btnlink.disabled{color:var(--dim);pointer-events:none;opacity:.55;}
+
+  /* ---------- chat / model output box ---------- */
+  .chat-card-wrap{display:flex;flex-direction:column;min-height:180px;}
+  .chat-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+  .mini-btn{background:transparent;border:1px solid var(--border);color:var(--dim);font-size:11px;padding:4px 10px;border-radius:6px;cursor:pointer;}
+  .mini-btn:hover{color:var(--text);border-color:#3a4256;}
+  .chatbox{max-height:520px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding-right:2px;}
+  .empty-chat{color:var(--dim);font-size:13px;text-align:center;padding:44px 10px;}
+  .bubble{border-radius:12px;padding:11px 14px;font-family:'Inter',sans-serif;font-size:13px;line-height:1.55;}
+  .bubble.user{align-self:flex-end;max-width:88%;background:rgba(108,140,242,0.14);border:1px solid rgba(108,140,242,0.30);color:var(--text);}
+  .bubble.assistant{align-self:stretch;width:100%;background:var(--panel-alt);border:1px solid var(--border);border-left:3px solid var(--c,var(--teal));}
+  .bubble.error{align-self:stretch;width:100%;background:rgba(232,116,138,0.10);border:1px solid rgba(232,116,138,0.35);}
+  .bubble .who{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:11.5px;color:var(--dim);}
+  .bubble .who b{color:var(--text);font-family:'Space Grotesk',sans-serif;font-size:13px;}
+  .bubble .text{white-space:pre-wrap;word-break:break-word;}
+  .bubble .thinking{color:var(--dim);font-style:italic;}
+  .bubble .thinking .dotflash{display:inline-block;animation:pulse 1.2s infinite;}
+  .bubble .meta-row{display:flex;gap:14px;flex-wrap:wrap;margin-top:9px;padding-top:9px;border-top:1px dashed var(--border);font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);}
+  .bubble .meta-row b{color:var(--text);}
+  .bubble details{margin-top:9px;}
+  .bubble summary{cursor:pointer;font-size:11px;color:var(--dim);}
+  .bubble summary:hover{color:var(--muted);}
+  .bubble details .tline,.bubble details .ttotal,.bubble details .texplain{font-size:12px;}
+  .bubble details .texplain{font-family:'Inter',sans-serif;}
 
   #scopeBar{display:flex;gap:8px;align-items:center;margin-bottom:14px;color:var(--dim);font-size:12.5px;}
   #scopeBar button{background:var(--panel-alt);border:1px solid var(--border);color:var(--muted);font-size:12.5px;padding:6px 12px;border-radius:20px;cursor:pointer;}
@@ -198,17 +233,35 @@
     <span id="apiStatus" class="mono">not connected</span>
   </div>
 
+  <div id="streamlitBar">
+    <input id="streamlitInput" type="text" placeholder="https://your-app.streamlit.app (your Streamlit dashboard URL)" spellcheck="false" />
+    <button id="streamlitSave">Save</button>
+    <span id="streamlitHint" class="mono">used by the "Streamlit dashboard" links below — set this once</span>
+  </div>
+
+  <!-- ---------------------------------------------------------------------
+       Single sign-on: this page no longer has its own email/password form.
+       Logging in happens once in the Streamlit app (dashboard.py). That app
+       links back here with ?token=... in the URL; this page picks it up,
+       stores it, and strips it from the address bar. From then on the same
+       token (and localStorage) keeps this page signed in as that account
+       until "Log out" is clicked -- see the handleIncomingAuth() script
+       below for the handoff logic. -------------------------------------- -->
   <div id="authBar">
     <span id="authLoggedOut">
-      <input id="authEmail" type="text" placeholder="email" spellcheck="false" autocomplete="off" />
-      <input id="authPassword" type="password" placeholder="password (min 6 chars)" autocomplete="off" />
-      <button id="authLoginBtn">Log in</button>
-      <button id="authSignupBtn">Sign up</button>
+      <span id="authLockedMsg" class="mono">Not logged in.</span>
+      <a id="openStreamlitBtn" class="btnlink disabled" href="#" target="_blank" rel="noopener">Log in via Streamlit dashboard ↗</a>
+      <button id="pasteTokenToggle" type="button">Have a token?</button>
+      <span id="pasteTokenRow" style="display:none;">
+        <input id="pasteTokenInput" type="text" placeholder="paste session token" spellcheck="false" autocomplete="off" />
+        <button id="pasteTokenUse">Use</button>
+      </span>
     </span>
     <span id="authLoggedIn" style="display:none;">
       <span id="authEmailLabel" class="mono"></span>
       <span id="authQuotaLabel" class="mono"></span>
       <button id="authUpgradeBtn">Upgrade (demo)</button>
+      <a id="backToStreamlitBtn" class="btnlink disabled" href="#" target="_blank" rel="noopener">Open Streamlit dashboard ↗</a>
       <button id="authLogoutBtn">Log out</button>
     </span>
     <span id="authStatus" class="mono"></span>
@@ -254,10 +307,12 @@
         </div>
         <div class="hint">Token counts below use tiktoken's cl100k_base tokenizer — a free, open, offline encoder (same family GPT-3.5/4 use) — so counts are exact, not guessed, even without any paid API call.</div>
       </div>
-      <div id="ticketHost">
-        <div class="card" style="display:flex;align-items:center;justify-content:center;min-height:180px;color:var(--dim);font-size:13px;">
-          Dispatch a prompt to see the ticket
+      <div class="card chat-card-wrap">
+        <div class="chat-head">
+          <h3 style="margin:0;font-family:'Space Grotesk',sans-serif;font-size:14px;">Model Output</h3>
+          <button id="clearChatBtn" class="mini-btn" type="button">Clear</button>
         </div>
+        <div id="chatHost" class="chatbox"></div>
       </div>
     </div>
   </section>
@@ -327,6 +382,31 @@
 </div>
 
 <script>
+// ---------------------------------------------------------------------------
+// Single sign-on handoff. dashboard.py (Streamlit) links to this page as
+// {API_BASE}/dashboard?token=<session token> after a successful login, and
+// as {API_BASE}/dashboard?logout=1 when the person logs out there. This
+// runs first, before authToken is read from localStorage below, so a token
+// arriving in the URL is already in effect for the rest of this page load.
+// The param is then stripped from the address bar (history.replaceState)
+// so the token doesn't linger in the browser history/bookmarks.
+// ---------------------------------------------------------------------------
+(function handleIncomingAuth(){
+  const params = new URLSearchParams(location.search);
+  const incomingToken = params.get('token');
+  const wantsLogout = params.get('logout') === '1';
+  if(!incomingToken && !wantsLogout) return;
+  if(wantsLogout){
+    localStorage.removeItem('acr_token');
+  } else if(incomingToken){
+    localStorage.setItem('acr_token', incomingToken);
+  }
+  params.delete('token');
+  params.delete('logout');
+  const q = params.toString();
+  history.replaceState({}, '', location.pathname + (q ? '?' + q : '') + location.hash);
+})();
+
 const ICONS = {
   code: '<path d="M9 8l-4 4 4 4"/><path d="M15 8l4 4-4 4"/>',
   route: '<circle cx="6" cy="6" r="2.2"/><circle cx="18" cy="18" r="2.2"/><path d="M8 6h6a4 4 0 0 1 4 4v0a4 4 0 0 1-4 4H8"/>',
@@ -361,6 +441,36 @@ function defaultApiBase(){
 }
 let API_BASE = defaultApiBase();
 document.getElementById('apiInput').value = API_BASE;
+
+// Streamlit dashboard URL -- only known once the person types it in and
+// hits Save (there's no reliable way to guess it, since dashboard.py is
+// typically deployed separately, e.g. on Streamlit Community Cloud). Saved
+// per-browser so it only needs to be entered once. Used to build the
+// "Log in via Streamlit dashboard" / "Open Streamlit dashboard" links,
+// carrying the current token back over on the way there.
+let STREAMLIT_URL = localStorage.getItem('acr_streamlit_url') || '';
+document.getElementById('streamlitInput').value = STREAMLIT_URL;
+document.getElementById('streamlitSave').addEventListener('click', () => {
+  STREAMLIT_URL = document.getElementById('streamlitInput').value.trim().replace(/\/$/, '');
+  localStorage.setItem('acr_streamlit_url', STREAMLIT_URL);
+  updateStreamlitLinks();
+});
+function updateStreamlitLinks(){
+  const openBtn = document.getElementById('openStreamlitBtn');
+  const backBtn = document.getElementById('backToStreamlitBtn');
+  const hasUrl = !!STREAMLIT_URL;
+  if(openBtn){
+    openBtn.href = hasUrl ? STREAMLIT_URL : '#';
+    openBtn.classList.toggle('disabled', !hasUrl);
+  }
+  if(backBtn){
+    const withToken = hasUrl && authToken
+      ? STREAMLIT_URL + (STREAMLIT_URL.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(authToken)
+      : STREAMLIT_URL;
+    backBtn.href = hasUrl ? withToken : '#';
+    backBtn.classList.toggle('disabled', !hasUrl);
+  }
+}
 let agentsCatalog = [];
 let modelsCatalog = [];
 let charts = {};
@@ -410,7 +520,11 @@ function renderAuthBar(){
   } else {
     loggedOut.style.display = 'inline-flex';
     loggedIn.style.display = 'none';
+    document.getElementById('authLockedMsg').textContent = STREAMLIT_URL
+      ? 'Not logged in.'
+      : 'Not logged in — paste the Streamlit dashboard URL above once, then log in there.';
   }
+  updateStreamlitLinks();
 }
 
 async function refreshMe(){
@@ -422,42 +536,40 @@ async function refreshMe(){
   }catch(e){ console.error(e); }
 }
 
-function resetTicketPanel(){
-  const host = document.getElementById('ticketHost');
-  host.innerHTML = `
-    <div class="card" style="display:flex;align-items:center;justify-content:center;min-height:180px;color:var(--dim);font-size:13px;">
-      Dispatch a prompt to see the ticket
-    </div>`;
-}
+// There is no login/signup form on this page anymore -- login happens once
+// in the Streamlit dashboard (dashboard.py), which hands this page a token
+// via the URL (see handleIncomingAuth() at the top of this script) or via
+// the paste-token fallback below. Both paths converge on the same
+// authToken/localStorage state as everything else in this file.
 
-async function authRequest(path, email, password){
-  const r = await fetch(API_BASE + path, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
-  });
-  const data = await r.json();
+document.getElementById('pasteTokenToggle').addEventListener('click', () => {
+  const row = document.getElementById('pasteTokenRow');
+  row.style.display = row.style.display === 'none' ? 'inline-flex' : 'none';
+});
+
+document.getElementById('pasteTokenUse').addEventListener('click', async () => {
+  const t = document.getElementById('pasteTokenInput').value.trim();
   const statusEl = document.getElementById('authStatus');
-  if(!r.ok){ statusEl.textContent = data.detail || 'Failed.'; return; }
-  authToken = data.token; authUser = data.user;
-  localStorage.setItem('acr_token', authToken);
-  statusEl.textContent = '';
-  resetTicketPanel();  // fresh account, fresh page -- don't show the previous account's last result
-  renderAuthBar();
-  usageScope = 'me'; updateScopeButtons();
-  refreshAll();  // pull in this account's own usage now that we have a token
-}
+  if(!t) return;
+  authToken = t;
+  await refreshMe();  // validates the token against /v1/auth/me and sets authUser, or clears it if invalid
+  if(authToken && authUser){
+    localStorage.setItem('acr_token', authToken);
+    statusEl.textContent = '';
+    document.getElementById('pasteTokenInput').value = '';
+    document.getElementById('pasteTokenRow').style.display = 'none';
+    resetChatPanel();  // fresh account, fresh page -- don't show the previous account's last output
+    renderAuthBar();
+    usageScope = 'me'; updateScopeButtons();
+    refreshAll();
+  } else {
+    statusEl.textContent = 'That token is not valid or has expired.';
+  }
+});
 
-document.getElementById('authLoginBtn').addEventListener('click', () => {
-  authRequest('/v1/auth/login', document.getElementById('authEmail').value.trim(),
-              document.getElementById('authPassword').value);
-});
-document.getElementById('authSignupBtn').addEventListener('click', () => {
-  authRequest('/v1/auth/signup', document.getElementById('authEmail').value.trim(),
-              document.getElementById('authPassword').value);
-});
 document.getElementById('authLogoutBtn').addEventListener('click', () => {
   authToken = null; authUser = null; localStorage.removeItem('acr_token');
-  resetTicketPanel();
+  resetChatPanel();
   renderAuthBar();
   usageScope = 'global'; updateScopeButtons();
   refreshAll();  // no token anymore -- fall back to the global demo view
@@ -513,55 +625,80 @@ function methodLabel(method){
   return {text:'approx · fallback', cls:'approx'};
 }
 
-function renderTicket(r, agentMeta){
-  const c = accentVar(agentMeta.accent);
-  const m = methodLabel(r.token_count_method);
-  const host = document.getElementById('ticketHost');
-  host.innerHTML = `
-    <div class="ticket show" style="--c:${c}">
-      <div class="ticket-head">
-        <div class="icon">${iconSvg(agentMeta.icon)}</div>
-        <div class="who"><div class="name">${r.agent_name}</div><div class="role">${r.agent_role}</div></div>
-        <div class="route-badge">${esc(r.route)} · ${esc(r.model_used)}</div>
-        <div class="${r.is_live_call ? 'live-badge' : 'mock-badge'}">${r.is_live_call ? 'LIVE' : 'MOCK'}</div>
-      </div>
-      <div class="ticket-body">
-        <div class="tresponse"><div class="tresponse-label">Response</div><div class="tresponse-text">${esc(r.response_text)}</div></div>
-        <div class="tline"><span>Complexity score</span><b>${r.complexity_score}</b></div>
-        <div class="tline"><span>Latency (exact, measured)</span><b>${r.latency_ms} ms</b></div>
-        <div class="tline"><span>Input tokens <span class="method-badge ${m.cls}">${m.text}</span></span><b>${r.input_tokens}</b></div>
-        <div class="tline"><span>Output tokens</span><b>${r.output_tokens}</b></div>
-        <div class="tline"><span>Total tokens</span><b>${r.total_tokens}</b></div>
-        <div class="tdivider"></div>
-        <div class="tline"><span>Input cost</span><b>${fmtUsd(r.input_cost_usd)}</b></div>
-        <div class="tline"><span>Output cost</span><b>${fmtUsd(r.output_cost_usd)}</b></div>
-        <div class="tdivider"></div>
-        <div class="ttotal"><span>Total</span><span class="val">${fmtUsd(r.estimated_cost_usd)}</span></div>
-        <div class="texplain"><b>Why this agent/route:</b> ${esc(r.routing_reason)}</div>
-        <div class="texplain" style="border-top:none;margin-top:8px;padding-top:0;"><b>Why this cost:</b> ${esc(r.cost_explanation)}</div>
-      </div>
-      <div class="tfoot"><span>latency ${r.latency_ms} ms</span><span>dispatched just now</span></div>
-    </div>`;
+// ---------------------------------------------------------------------------
+// Chat-style "Model Output" box. chatHistory is in-memory only (per tab) --
+// each entry is one of:
+//   {role:'user', text}                  -- the prompt, right-aligned bubble
+//   {role:'pending'}                     -- shown while a dispatch is in flight
+//   {role:'assistant', data, meta}       -- the agent's reply + full ticket
+//   {role:'error', text}                 -- a failed dispatch
+// This replaces the old single "ticket" panel that only ever showed the
+// most recent result and didn't visually pair the prompt with its reply.
+// ---------------------------------------------------------------------------
+let chatHistory = [];
+
+function resetChatPanel(){
+  chatHistory = [];
+  renderChat();
 }
 
-// Any dispatch failure -- network error, 401/402/422/500, bad JSON -- now
-// renders visibly here instead of silently leaving the placeholder text
-// with no explanation (previously only logged to the browser console).
-function renderTicketError(message){
-  const host = document.getElementById('ticketHost');
-  host.innerHTML = `
-    <div class="ticket show" style="--c:var(--rose,#e8748a);border-color:var(--rose,#e8748a);">
-      <div class="ticket-head">
-        <div class="who"><div class="name">Dispatch failed</div></div>
-      </div>
-      <div class="ticket-body">
-        <div class="tresponse">
-          <div class="tresponse-label">Error</div>
-          <div class="tresponse-text">${esc(message)}</div>
-        </div>
-      </div>
-    </div>`;
+function renderChat(){
+  const host = document.getElementById('chatHost');
+  if(!host) return;
+  if(!chatHistory.length){
+    host.innerHTML = '<div class="empty-chat">Dispatch a prompt on the left to see the agent\'s reply, tokens, and cost here.</div>';
+    return;
+  }
+  host.innerHTML = chatHistory.map(renderBubble).join('');
+  host.scrollTop = host.scrollHeight;
 }
+
+function renderBubble(m){
+  if(m.role === 'user'){
+    return `<div class="bubble user"><div class="text">${esc(m.text)}</div></div>`;
+  }
+  if(m.role === 'pending'){
+    return `<div class="bubble assistant"><div class="thinking"><span class="dotflash">●</span> Dispatching…</div></div>`;
+  }
+  if(m.role === 'error'){
+    return `<div class="bubble error">
+      <div class="who"><b>Dispatch failed</b></div>
+      <div class="text">${esc(m.text)}</div>
+    </div>`;
+  }
+  const r = m.data, agentMeta = m.meta;
+  const c = accentVar(agentMeta.accent);
+  const mth = methodLabel(r.token_count_method);
+  return `<div class="bubble assistant" style="--c:${c}">
+    <div class="who">
+      <b>${esc(r.agent_name)}</b>&nbsp;·&nbsp;${esc(r.agent_role)}
+      <span class="${r.is_live_call ? 'live-badge' : 'mock-badge'}">${r.is_live_call ? 'LIVE' : 'MOCK'}</span>
+    </div>
+    <div class="text">${esc(r.response_text)}</div>
+    <div class="meta-row">
+      <span>route <b>${esc(r.route)}</b></span>
+      <span>model <b>${esc(r.model_used)}</b></span>
+      <span>tokens <b>${r.total_tokens}</b></span>
+      <span>cost <b>${fmtUsd(r.estimated_cost_usd)}</b></span>
+      <span>latency <b>${r.latency_ms} ms</b></span>
+    </div>
+    <details>
+      <summary>Full cost ticket</summary>
+      <div class="tline"><span>Complexity score</span><b>${r.complexity_score}</b></div>
+      <div class="tline"><span>Input tokens <span class="method-badge ${mth.cls}">${mth.text}</span></span><b>${r.input_tokens}</b></div>
+      <div class="tline"><span>Output tokens</span><b>${r.output_tokens}</b></div>
+      <div class="tdivider"></div>
+      <div class="tline"><span>Input cost</span><b>${fmtUsd(r.input_cost_usd)}</b></div>
+      <div class="tline"><span>Output cost</span><b>${fmtUsd(r.output_cost_usd)}</b></div>
+      <div class="tdivider"></div>
+      <div class="ttotal"><span>Total</span><span class="val">${fmtUsd(r.estimated_cost_usd)}</span></div>
+      <div class="texplain"><b>Why this agent/route:</b> ${esc(r.routing_reason)}</div>
+      <div class="texplain" style="border-top:none;margin-top:8px;padding-top:0;"><b>Why this cost:</b> ${esc(r.cost_explanation)}</div>
+    </details>
+  </div>`;
+}
+
+document.getElementById('clearChatBtn').addEventListener('click', resetChatPanel);
 
 function renderCharts(agentStats, modelStats, stats){
   if(typeof Chart === 'undefined'){
@@ -730,6 +867,8 @@ function renderConsumptionCharts(rows, selectedProviders){
 document.getElementById('consGranularity').addEventListener('change', refreshConsumption);
 document.querySelectorAll('.provider-toggle').forEach(el => el.addEventListener('change', refreshConsumption));
 
+resetChatPanel();
+
 async function refreshAll(){
   document.getElementById('apiStatus').textContent = 'loading…';
 
@@ -813,15 +952,32 @@ document.getElementById('apiConnect').addEventListener('click', () => {
   refreshAll();
 });
 
+// Swaps the current 'pending' bubble for a final one (assistant or error),
+// or appends it if somehow there's no pending bubble left to replace.
+function resolvePending(entry){
+  const idx = chatHistory.findIndex(m => m.role === 'pending');
+  if(idx >= 0) chatHistory[idx] = entry;
+  else chatHistory.push(entry);
+  renderChat();
+}
+
 document.getElementById('sendBtn').addEventListener('click', async () => {
-  const prompt = document.getElementById('promptInput').value.trim();
+  const promptBox = document.getElementById('promptInput');
+  const prompt = promptBox.value.trim();
   if(!prompt) return;
   if(!authToken){
-    renderTicketError('Log in or sign up above first (5 free requests, no card needed).');
+    chatHistory.push({role:'user', text: prompt});
+    chatHistory.push({role:'error', text:'Log in first — use "Log in via Streamlit dashboard" above (5 free requests, no card needed).'});
+    renderChat();
     return;
   }
   const btn = document.getElementById('sendBtn');
   btn.disabled = true; btn.textContent = 'Dispatching…';
+  chatHistory.push({role:'user', text: prompt});
+  chatHistory.push({role:'pending'});
+  renderChat();
+  promptBox.value = '';
+
   const payload = { prompt };
   const fr = document.getElementById('forceRoute').value;
   const fm = document.getElementById('forceModel').value;
@@ -842,16 +998,16 @@ document.getElementById('sendBtn').addEventListener('click', async () => {
     let data;
     try{ data = await r.json(); }
     catch(parseErr){
-      renderTicketError(`Server returned a non-JSON response (HTTP ${r.status}). Is ${API_BASE} pointed at the right API?`);
+      resolvePending({role:'error', text:`Server returned a non-JSON response (HTTP ${r.status}). Is ${API_BASE} pointed at the right API?`});
       return;
     }
     if(r.status === 401){
       authToken = null; authUser = null; localStorage.removeItem('acr_token'); renderAuthBar();
-      renderTicketError('Session expired — log in again above, then re-send.');
+      resolvePending({role:'error', text:'Session expired — log in again via the Streamlit dashboard, then re-send.'});
       return;
     }
     if(r.status === 402){
-      renderTicketError(data.detail || 'Free limit reached — click Upgrade above to continue.');
+      resolvePending({role:'error', text: data.detail || 'Free limit reached — click Upgrade above to continue.'});
       return;
     }
     if(!r.ok){
@@ -859,17 +1015,17 @@ document.getElementById('sendBtn').addEventListener('click', async () => {
       // plain string -- stringify so the real reason (e.g. a bad model name
       // in force_model) is visible instead of "[object Object]".
       const detail = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail);
-      renderTicketError(`API error (HTTP ${r.status}): ${detail || 'unknown error'}`);
+      resolvePending({role:'error', text:`API error (HTTP ${r.status}): ${detail || 'unknown error'}`});
       return;
     }
     const meta = agentsCatalog.find(a=>a.id===data.agent_id) || {accent:'teal', icon:'zap'};
-    renderTicket(data, meta);
+    resolvePending({role:'assistant', data, meta});
     await refreshAll();
     await refreshMe();
   }catch(e){
     console.error(e);
-    renderTicketError(`Could not reach ${API_BASE} (${e.message}). Is the API running and is this URL correct? `
-      + `Check the Connect box at the top of the page.`);
+    resolvePending({role:'error', text:`Could not reach ${API_BASE} (${e.message}). Is the API running and is this URL correct? `
+      + `Check the Connect box at the top of the page.`});
   }finally{
     btn.disabled = false; btn.textContent = 'Dispatch →';
   }

@@ -19,7 +19,8 @@ API_BASE = os.environ.get("ROUTER_API_BASE", "http://localhost:8000")
 st.title("Agentic Cost Router")
 st.caption("Routes prompts by complexity, tracks cost saved vs. always using the frontier model.")
 st.info("A more visual, agent-focused view of this same data lives at **/dashboard** on the API "
-        f"(e.g. {API_BASE}/dashboard) — cards per agent, a printed cost ticket per prompt, and charts.")
+        f"(e.g. {API_BASE}/dashboard) — cards per agent, a chat-style output box, and charts. "
+        "Logging in here also logs you in there (and vice versa) — no separate account needed.")
 
 # ---------------------------------------------------------------------------
 # Login / signup gate. POST /v1/route now requires a Bearer token (5 free
@@ -30,6 +31,36 @@ st.info("A more visual, agent-focused view of this same data lives at **/dashboa
 if "token" not in st.session_state:
     st.session_state["token"] = None
     st.session_state["user"] = None
+
+# ---------------------------------------------------------------------------
+# Single sign-on with the HTML dashboard (static/dashboard.html, served at
+# {API_BASE}/dashboard). That page has no login form of its own anymore --
+# it either arrives here already logged in via ?token=... in its own URL,
+# or it links back to THIS app with ?token=... after login happens here.
+# We mirror that: if this app is opened with ?token=..., adopt that session
+# instead of showing the login form, so either app can "start" the login
+# and the other one just follows. ?logout=1 clears the session the same
+# way. The query params are cleared right after so refreshing the page
+# doesn't replay the same action and so tokens don't linger in the URL.
+# ---------------------------------------------------------------------------
+_qp = st.query_params
+if _qp.get("logout") == "1":
+    st.session_state["token"] = None
+    st.session_state["user"] = None
+    st.session_state["last_result"] = None
+    st.query_params.clear()
+elif _qp.get("token") and st.session_state["token"] is None:
+    _incoming_token = _qp["token"]
+    try:
+        _resp = httpx.get(f"{API_BASE}/v1/auth/me",
+                           headers={"Authorization": f"Bearer {_incoming_token}"}, timeout=10)
+        if _resp.status_code == 200:
+            st.session_state["token"] = _incoming_token
+            st.session_state["user"] = _resp.json()
+            st.session_state["last_result"] = None
+    except Exception:
+        pass  # fall through to the normal login form below if this failed
+    st.query_params.clear()
 
 def _auth_headers() -> dict:
     token = st.session_state.get("token")
@@ -92,6 +123,19 @@ with st.sidebar:
                         st.error(resp.json().get("detail", "Upgrade failed."))
                 except Exception as exc:
                     st.error(f"Could not reach {API_BASE} ({exc}).")
+
+        # Same session, other view -- carries the token over so
+        # dashboard.html opens already logged in as this account instead
+        # of showing its own login form.
+        st.link_button(
+            "Open Agent Dispatch view ↗",
+            f"{API_BASE}/dashboard?token={st.session_state['token']}",
+        )
+        st.caption(
+            "Logging out below only ends the session here. To end it on the "
+            "Agent Dispatch view too, "
+            f"[click here]({API_BASE}/dashboard?logout=1) (opens in that page)."
+        )
         if st.button("Log out"):
             st.session_state["token"] = None
             st.session_state["user"] = None
