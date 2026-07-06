@@ -1,42 +1,60 @@
-# Agentic Cost Router
+# Agentic Cost Analyzer
 
 **Every prompt, routed to an agent, priced to the token.**
 
-A small, fully working system that sits in front of an LLM call and decides,
-per prompt, whether it actually needs a frontier model, or whether a cheaper
-model would do the same job for a fraction of the cost. Every decision,
-token count, and dollar amount is logged and shown back to you, not just
-estimated.
+[![Live Demo](https://img.shields.io/badge/Streamlit-Live_App-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://agentic-cost-analyzer-ld6uxpsuecoytdpat7grg3.streamlit.app/)
+[![Repo](https://img.shields.io/badge/GitHub-Repository-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/midhulms/Agentic-cost-Analyzer)
 
-**Live demo:** `https://agentic-cost-router.onrender.com/dashboard`
-**API docs:** `https://agentic-cost-router.onrender.com/docs`
+A working system that sits in front of an LLM call and decides, per prompt,
+whether it needs a frontier model or whether a cheaper model handles the
+same job for a fraction of the cost. Every routing decision, token count,
+and dollar amount is logged in SQLite and shown back on a live dashboard,
+not estimated after the fact.
 
-> Free tier note: the demo above resets its usage data whenever the service
-> redeploys or wakes up from being idle. That is a hosting limitation, not a
-> bug. See [Deployment](#deployment) below, and the full walkthrough in
-> [`DEMO_GUIDE.md`](./DEMO_GUIDE.md).
+**Live demo:** [agentic-cost-analyzer-ld6uxpsuecoytdpat7grg3.streamlit.app](https://agentic-cost-analyzer-ld6uxpsuecoytdpat7grg3.streamlit.app/)
+**Repository:** [github.com/midhulms/Agentic-cost-Analyzer](https://github.com/midhulms/Agentic-cost-Analyzer)
+**API docs:** `<backend-url>/docs` (see [Deployment](#deployment) for where the API is currently hosted)
+
+> Free-tier note: hosted demos on Render or Streamlit Cloud can reset their
+> usage data on redeploy or after waking from idle. That's a hosting
+> limitation of the free tier, not a bug. See [Deployment](#deployment)
+> below and the full walkthrough in [`DEMO_GUIDE.md`](./DEMO_GUIDE.md).
 
 ---
 
-## Demo
+## Demo video
 
-![Agentic Cost Router demo](./demo.gif)
+Two walkthroughs on Google Drive, covering sign-up, routing a prompt,
+reading the cost ticket, and switching between agents. Start with the
+narrated one if you only have time for one:
 
-A full walkthrough, covering routing logic, live agent switching, and a real
-Hugging Face call end to end, is linked below once recorded. To add your own
-recording:
+<p>
+<a href="https://drive.google.com/file/d/1x6XXZXymMK7qC4FqCqG54xcylGgKRx8F/view?usp=sharing">
+  <img src="https://drive.google.com/thumbnail?id=1x6XXZXymMK7qC4FqCqG54xcylGgKRx8F&sz=w640" width="320" alt="Narrated walkthrough, with audio (click to play)">
+</a>
+<a href="https://drive.google.com/file/d/1aKW_9gviq_zSP9bPd4nysZa1-dMCrMHw/view?usp=sharing">
+  <img src="https://drive.google.com/thumbnail?id=1aKW_9gviq_zSP9bPd4nysZa1-dMCrMHw&sz=w640" width="320" alt="Silent screen-capture walkthrough, no audio (click to play)">
+</a>
+</p>
+
+- 📺 [Walkthrough — with audio (narrated)](https://drive.google.com/file/d/1x6XXZXymMK7qC4FqCqG54xcylGgKRx8F/view?usp=sharing)
+- 📺 [Walkthrough — no audio (screen capture only)](https://drive.google.com/file/d/1aKW_9gviq_zSP9bPd4nysZa1-dMCrMHw/view?usp=sharing)
+
+> GitHub only renders these thumbnails when the Drive files are shared as
+> "Anyone with the link." If a thumbnail shows as broken, open the file in
+> Drive → Share → change access to "Anyone with the link, Viewer."
+
+To add your own recording instead:
 
 1. Record a short screen capture (OBS, QuickTime, or your OS's built-in
-   recorder all work fine) showing a prompt being dispatched, the agent
-   card and cost ticket updating, and the Prometheus/Grafana dashboards if
-   you have them running.
-2. Upload it to YouTube (unlisted is fine for a portfolio link), or convert
-   it to a short looping GIF with a tool such as `ffmpeg` or
-   [Gifski](https://gif.ski/), and save it as `demo.gif` in the repository
-   root so the embed above renders directly on GitHub.
-3. Replace the placeholder link below with your own YouTube URL.
-
-📺 **[Watch the full walkthrough on YouTube](your-youtube-link-here)**
+   recorder) showing a prompt being dispatched, the agent card and cost
+   ticket updating, and the Prometheus/Grafana dashboards if you have them
+   running.
+2. Upload it to YouTube (unlisted works fine for a portfolio link) or
+   convert it to a short looping GIF with `ffmpeg` or
+   [Gifski](https://gif.ski/), saved as `demo.gif` in the repository root
+   so it renders directly on GitHub.
+3. Swap in your own link above.
 
 ---
 
@@ -151,8 +169,8 @@ which would need an `agent_key` parameter threaded through from
 ## Quick start (local, no Docker)
 
 ```bash
-git clone <your-repo-url>
-cd agentic-cost-router
+git clone https://github.com/midhulms/Agentic-cost-Analyzer.git
+cd Agentic-cost-Analyzer
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
