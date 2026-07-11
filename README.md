@@ -11,7 +11,7 @@ same job for a fraction of the cost. Every routing decision, token count,
 and dollar amount is logged in SQLite and shown back on a live dashboard,
 not estimated after the fact.
 
-**Live demo:** [agentic-cost-analyzer-ld6uxpsuecoytdpat7grg3.streamlit.app](https://agentic-cost-analyzer-ld6uxpsuecoytdpat7grg3.streamlit.app/)
+**Live demo:** [agentic-cost-analyzer-ld6uxpsuecoytdpat7grg3.streamlit.app](https://agentic-cost-analyzer-rlxdbsuycqxrlc7nqlykkc.streamlit.app/)
 **Repository:** [github.com/midhulms/Agentic-cost-Analyzer](https://github.com/midhulms/Agentic-cost-Analyzer)
 **API docs:** `<backend-url>/docs` (see [Deployment](#deployment) for where the API is currently hosted)
 
