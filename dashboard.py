@@ -1,12 +1,5 @@
 # Streamlit dashboard for the Agentic Cost Router. Author: Midhul MS (Cryzal)
 import os
-
-# Must be set before numpy/pandas are imported below. Prevents a segfault
-# on hosts whose CPU lacks the instruction set (e.g. AVX2) that PyPI's
-# prebuilt numpy wheel assumes. Costs a negligible amount of speed on
-# modern CPUs; only Core2 or older lack the fallback path entirely.
-os.environ.setdefault("OPENBLAS_CORETYPE", "Core2")
-
 import httpx
 import pandas as pd
 import plotly.express as px
