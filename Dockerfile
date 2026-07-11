@@ -1,4 +1,4 @@
-# Author: Cryzal & Midhul
+# Author: Midhul MS (Cryzal)
 FROM python:3.11-slim
 
 WORKDIR /app

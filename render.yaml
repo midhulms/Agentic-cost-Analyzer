@@ -1,4 +1,4 @@
-# Author: Cryzal & Midhul
+# Author: Midhul MS (Cryzal)
 # Render Blueprint: lets Render read this file and configure the service
 # automatically instead of filling in every field by hand in the dashboard.
 # Docs: https://render.com/docs/infrastructure-as-code

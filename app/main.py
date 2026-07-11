@@ -1,10 +1,13 @@
-# Agentic Cost Router API. Author: Cryzal & Midhul
+# Agentic Cost Router API. Author: Midhul MS (Cryzal)
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, HTTPException, Response
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
 from app.agents import all_agents
 from app.auth import (
@@ -29,6 +32,10 @@ app = FastAPI(
                  "tracks exact token counts and cost, and attributes every request to a named agent.",
     version="0.2.0",
 )
+
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 if STATIC_DIR.exists():
@@ -68,7 +75,8 @@ def dashboard() -> FileResponse:
 
 
 @app.post("/v1/auth/signup", response_model=TokenResponse)
-def signup(req: SignupRequest) -> TokenResponse:
+@limiter.limit("5/minute")
+def signup(request: Request, req: SignupRequest) -> TokenResponse:
     """Create an account. Every new account starts with 5 free /v1/route
     calls before it needs to upgrade."""
     try:
@@ -80,7 +88,8 @@ def signup(req: SignupRequest) -> TokenResponse:
 
 
 @app.post("/v1/auth/login", response_model=TokenResponse)
-def login(req: LoginRequest) -> TokenResponse:
+@limiter.limit("10/minute")
+def login(request: Request, req: LoginRequest) -> TokenResponse:
     user = verify_user(req.email, req.password)
     if user is None:
         raise HTTPException(status_code=401, detail="Incorrect email or password.")
@@ -106,7 +115,8 @@ def upgrade(user: dict = Depends(require_user)) -> UserInfo:
 
 
 @app.post("/v1/route", response_model=RouteResponse)
-def route(req: RouteRequest, user: dict = Depends(require_user)) -> RouteResponse:
+@limiter.limit("100/minute")
+def route(request: Request, req: RouteRequest, user: dict = Depends(require_user)) -> RouteResponse:
     quota = consume_free_use(user["id"])
     if not quota["allowed"]:
         raise HTTPException(

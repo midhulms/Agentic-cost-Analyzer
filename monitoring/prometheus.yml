@@ -1,4 +1,4 @@
-# Author: Cryzal & Midhul
+# Author: Midhul MS (Cryzal)
 # Tells Prometheus where to scrape. In docker-compose, the API is reachable
 # at the service name "api" on the internal network. Not "localhost".
 global:

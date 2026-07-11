@@ -1,7 +1,7 @@
 """
 Central configuration for the router.
 
-Author: Cryzal & Midhul
+Author: Midhul MS (Cryzal)
 
 Everything here is overridable via environment variables (see .env.example),
 so the same code runs in "mock" mode with no API keys for local demos,
@@ -30,41 +30,25 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     openai_api_key: str = ""
 
-    # Hugging Face Inference Providers (free tier available)
-    # Get a token at https://huggingface.co/settings/tokens (fine-grained,
-    # "Make calls to Inference Providers" permission). This single token
-    # works across every model in MODEL_CATALOG with api="huggingface" --
-    # HF's router picks the actual backend provider (Together, Fireworks,
-    # Cerebras, etc.) for you. New accounts get free monthly inference
-    # credits, so this is the easiest way to run this app against a real
-    # frontier-class model with zero cost.
+    # Hugging Face Inference Providers (free tier available).
+    # Token from https://huggingface.co/settings/tokens, works across every
+    # model in MODEL_CATALOG with api="huggingface".
     hf_api_key: str = ""
 
-    # Storage
-    # Relative to the app's working directory (/app in Docker). Deliberately
-    # under "data/" so it lines up with the ./data volume mount in
-    # docker-compose.yml (local persistence) and with a Render persistent
-    # disk mounted at /app/data, if one is attached (see render.yaml).
-    # IMPORTANT: Render's FREE tier has no persistent disk. The container
-    # filesystem is wiped on every deploy and on every cold-start after the
-    # service spins down from inactivity. On free tier this data will
-    # periodically reset to zero; that's expected, not a bug. Attach a paid
-    # persistent disk (or point db_path at an external DB) to keep it.
+    # Storage path, relative to the app's working directory (/app in Docker).
+    # Matches the ./data volume in docker-compose.yml and a Render disk at
+    # /app/data if one is attached. Render's free tier has no persistent
+    # disk, so data resets on redeploy/cold-start there unless upgraded.
     db_path: str = "data/cost_router.db"
 
 
 settings = Settings()
 
-# Model catalog: every model the router is allowed to pick between, grouped
-# by tier. "tier" is what the router logic keys off; "provider" groups
-# models the way a model-selection dropdown would (GPT / cloud / Gemini);
-# "api" tells providers.call_model() which real backend to hit when a key
-# is available ("anthropic" | "openai" | "mistral" | "ollama" | "gemini" |
-# "mock"). This is what makes picking a model in the dashboard actually
-# call that model's real API instead of just relabeling a mock reply;
-# "input"/"output" are rough reference USD per 1K tokens (for estimated
-# cost, not billing); "context_window" is included so the dashboard can
-# warn if a prompt is too long for a given model.
+# Model catalog: every model the router can pick between, grouped by tier.
+# "tier" drives the routing logic; "provider" groups models for the
+# dashboard dropdown; "api" tells providers.call_model() which backend to
+# hit; "input"/"output" are reference USD per 1K tokens for cost estimates;
+# "context_window" lets the dashboard warn on oversized prompts.
 MODEL_CATALOG = {
     # Cheap / open-weight tier
     "llama3.1:8b":     {"tier": "cheap",    "provider": "cloud",    "api": "ollama", "input": 0.0002, "output": 0.0002, "context_window": 128_000},
@@ -87,26 +71,17 @@ MODEL_CATALOG = {
     "gemini-1.5-pro":   {"tier": "frontier", "provider": "gemini",   "api": "gemini",    "input": 0.00125, "output": 0.005,  "context_window": 2_000_000},
     "mock-frontier":    {"tier": "frontier", "provider": "cloud",    "api": "mock",      "input": 0.003,  "output": 0.015,  "context_window": 200_000},
 
-    # Hugging Face Inference Providers. One free token runs all of
-    # these (https://huggingface.co/settings/tokens). "input"/"output"
-    # prices are the going per-1K rate the underlying backend provider
-    # HF's router selects (Together/Fireworks/Cerebras/etc.) typically
-    # charges. HF passes it through with no markup. New accounts get
-    # free monthly credits that cover a meaningful number of requests at
-    # these rates, so real cost is commonly $0 while credits last; the
-    # dashboard still prices every call so you can see what it *would*
-    # cost once credits run out. "provider" is grouped as "cloud" (open
-    # weight) to match the existing dashboard filter.
+    # Hugging Face Inference Providers. One free token runs all of these
+    # (https://huggingface.co/settings/tokens); prices shown are the
+    # underlying backend provider's per-1K rate, passed through by HF.
     "meta-llama/Llama-3.1-8B-Instruct":  {"tier": "cheap",    "provider": "cloud", "api": "huggingface", "input": 0.00005, "output": 0.00008, "context_window": 128_000},
     "Qwen/Qwen2.5-72B-Instruct":         {"tier": "mid",      "provider": "cloud", "api": "huggingface", "input": 0.0004,  "output": 0.0004,  "context_window": 32_000},
     "meta-llama/Llama-3.3-70B-Instruct": {"tier": "mid",      "provider": "cloud", "api": "huggingface", "input": 0.0004,  "output": 0.0004,  "context_window": 128_000},
     "deepseek-ai/DeepSeek-V3-0324":      {"tier": "frontier", "provider": "cloud", "api": "huggingface", "input": 0.00027, "output": 0.0011,  "context_window": 64_000},
     "openai/gpt-oss-120b":               {"tier": "frontier", "provider": "cloud", "api": "huggingface", "input": 0.00015, "output": 0.0006,  "context_window": 128_000},
     "moonshotai/Kimi-K2-Instruct-0905":  {"tier": "frontier", "provider": "cloud", "api": "huggingface", "input": 0.00055, "output": 0.0022,  "context_window": 262_000},
-    # Z.ai's flagship reasoning/coding model, confirmed live on HF Inference
-    # Providers (https://huggingface.co/docs/inference-providers/providers/zai-org).
-    # The ":zai-org" suffix pins the routing policy to Z.ai's own backend
-    # (as shown in their docs) instead of leaving it to HF's default picker.
+    # Z.ai's flagship model on HF Inference Providers; the ":zai-org" suffix
+    # pins routing to Z.ai's own backend instead of HF's default picker.
     "zai-org/GLM-5.2:zai-org":           {"tier": "frontier", "provider": "cloud", "api": "huggingface", "input": 0.0006,  "output": 0.0022,  "context_window": 1_000_000},
 }
 

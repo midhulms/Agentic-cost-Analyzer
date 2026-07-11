@@ -1,5 +1,12 @@
-# Streamlit dashboard for the Agentic Cost Router. Author: Cryzal & Midhul
+# Streamlit dashboard for the Agentic Cost Router. Author: Midhul MS (Cryzal)
 import os
+
+# Must be set before numpy/pandas are imported below. Prevents a segfault
+# on hosts whose CPU lacks the instruction set (e.g. AVX2) that PyPI's
+# prebuilt numpy wheel assumes. Costs a negligible amount of speed on
+# modern CPUs; only Core2 or older lack the fallback path entirely.
+os.environ.setdefault("OPENBLAS_CORETYPE", "Core2")
+
 import httpx
 import pandas as pd
 import plotly.express as px
@@ -15,12 +22,10 @@ if _secrets_path.exists():
         if _key in st.secrets:
             os.environ.setdefault(_key, st.secrets[_key])
 API_BASE = os.environ.get("ROUTER_API_BASE", "http://localhost:8000")
-# API_BASE is used for server-to-server calls made from Python here (httpx.get/post),
-# which inside Docker must hit the internal service name (e.g. http://api:8000).
-# PUBLIC_API_BASE is used only for links/text meant to be opened in the user's own
-# browser, which cannot resolve Docker's internal hostnames -- it needs localhost
-# (or a real public domain when deployed). Falls back to API_BASE if not set,
-# which is correct for the no-Docker local run where both are the same.
+# API_BASE is for server-to-server calls (httpx), which inside Docker must
+# hit the internal service name (e.g. http://api:8000). PUBLIC_API_BASE is
+# for links opened in the user's own browser, which needs localhost or a
+# real public domain instead.
 PUBLIC_API_BASE = os.environ.get("ROUTER_PUBLIC_API_BASE", API_BASE if not API_BASE.startswith("http://api:") else "http://localhost:8000")
 
 st.title("Agentic Cost Router")
@@ -29,27 +34,17 @@ st.info("A more visual, agent-focused view of this same data lives at **/dashboa
         f"(e.g. {PUBLIC_API_BASE}/dashboard), with cards per agent, a chat-style output box, and charts. "
         "Logging in here also logs you in there (and vice versa); no separate account is needed.")
 
-# ======================================================================
-# Login / signup gate. POST /v1/route now requires a Bearer token (5 free
-# calls per account, then /v1/auth/upgrade is required). See app/auth.py.
-# Everything below this block is unreachable until st.session_state["token"]
-# is set, which happens on a successful login or signup.
-# ======================================================================
+# Login / signup gate. POST /v1/route requires a Bearer token (5 free
+# calls per account, then /v1/auth/upgrade). See app/auth.py. Nothing
+# below this block runs until st.session_state["token"] is set.
 if "token" not in st.session_state:
     st.session_state["token"] = None
     st.session_state["user"] = None
 
-# ======================================================================
 # Single sign-on with the HTML dashboard (static/dashboard.html, served at
-# {API_BASE}/dashboard). That page has no login form of its own anymore --
-# it either arrives here already logged in via ?token=... in its own URL,
-# or it links back to THIS app with ?token=... after login happens here.
-# We mirror that: if this app is opened with ?token=..., adopt that session
-# instead of showing the login form, so either app can "start" the login
-# and the other one just follows. ?logout=1 clears the session the same
-# way. The query params are cleared right after so refreshing the page
-# doesn't replay the same action and so tokens don't linger in the URL.
-# ======================================================================
+# {API_BASE}/dashboard): if this app opens with ?token=..., adopt that
+# session instead of showing the login form. ?logout=1 clears it. Query
+# params are cleared right after so a refresh doesn't replay the action.
 _qp = st.query_params
 if _qp.get("logout") == "1":
     st.session_state["token"] = None
@@ -153,13 +148,8 @@ if st.session_state["token"] is None:
     st.info("Log in or create a free account in the sidebar to use the router (5 free requests, no card needed).")
     st.stop()
 
-# ======================================================================
-# Stats / charts. Previously every account saw the same numbers here because
-# these all hit the GLOBAL endpoints (/v1/stats, /v1/recent, ...), which
-# aggregate every user's requests together. Default view is now each user's
-# own data via the authenticated /me endpoints; the toggle below lets anyone
-# switch back to the combined "everyone" view if they want it.
-# ======================================================================
+# Stats / charts. Default view is each user's own data via the /me
+# endpoints; the toggle switches to the combined global view.
 view_choice = st.radio("View", ["My usage", "Everyone (global demo)"], horizontal=True)
 scope_me = view_choice == "My usage"
 stats_path = "/v1/stats/me" if scope_me else "/v1/stats"
@@ -257,13 +247,9 @@ if selected_models:
 else:
     st.info("Select at least one model above to see its consumption trend.")
 
-# ======================================================================
-# Dispatch a prompt. Now a dedicated two-column layout: controls on the
-# left, a persistent "Model Output" panel on the right. The result stays in
-# st.session_state["last_result"] so the output column keeps showing the
-# last response even as the rest of the page reruns (e.g. when you touch a
-# filter above), instead of only flashing on screen for one run.
-# ======================================================================
+# Dispatch a prompt: controls on the left, a persistent "Model Output"
+# panel on the right. The result is kept in st.session_state["last_result"]
+# so it stays visible across reruns instead of flashing for one run.
 st.subheader("Dispatch a prompt")
 left, right = st.columns([1, 1])
 

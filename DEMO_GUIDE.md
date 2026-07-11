@@ -133,8 +133,8 @@ internal Docker network.
    | HTML dashboard | `http://localhost:8000/dashboard` | Same page as the no-Docker run |
    | API docs | `http://localhost:8000/docs` | |
    | Streamlit dashboard | `http://localhost:8501` | Talks to the `api` service over the internal Docker network |
-   | Prometheus | `http://localhost:9090` | Go to **Status -> Targets**; the `agentic-cost-router` job should show as `UP` |
-   | Grafana | `http://localhost:3000` | Log in with `admin` / `admin` (Grafana will ask you to set a new password, or you can skip that step) |
+   | Prometheus | `http://localhost:9091` | Go to **Status -> Targets**; the `agentic-cost-router` job should show as `UP` |
+   | Grafana | `http://localhost:3001` | Log in with `admin` / `admin` (Grafana will ask you to set a new password, or you can skip that step) |
 
 5. Grafana is pre-provisioned, so there is nothing to configure by hand:
    - The Prometheus data source is added automatically on first boot

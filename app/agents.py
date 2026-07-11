@@ -1,15 +1,10 @@
-# Agent personas. Author: Cryzal & Midhul
+# Agent personas. Author: Midhul MS (Cryzal)
 #
-# The router already decides a *tier* (cheap/frontier) and a *model*.
-# This module adds a human-facing layer on top of that: which named
-# "agent" handled the request. The agent is picked from the same
-# complexity signals the router already computes (see app/complexity.py),
-# so it costs nothing extra to derive and always matches what actually
-# happened. No separate classifier, no extra tokens spent.
-#
-# Priority order matters: a prompt can trip more than one signal
-# (e.g. contains code AND asks "why"), so we pick the most specific
-# match first and fall back to the tier's default agent last.
+# The router picks a tier and model; this module adds a human-facing name
+# for which "agent" handled the request, reusing the same complexity
+# signals from app/complexity.py so no extra classifier or tokens are
+# needed. A prompt can trip more than one signal, so the most specific
+# match wins and the tier's default agent is the fallback.
 
 AGENT_CATALOG = {
     "compiler": {
@@ -52,10 +47,8 @@ AGENT_CATALOG = {
         "tagline": "Fast answers, short prompts.",
         "description": "Picked up because the prompt was short and single-intent. No reasoning, planning, or code signals fired.",
     },
-    # Example of a custom, hand-added agent
-    # Not derived from complexity.py at all. Just a plain keyword check in
-    # pick_agent() below. Copy this pattern for your own agents: add an
-    # entry here, then add one `if` branch in pick_agent().
+    # Custom agent, not derived from complexity.py, just a keyword check
+    # in pick_agent() below. Add new agents the same way.
     "echo": {
         "name": "Echo",
         "role": "Summary Agent",
@@ -97,10 +90,8 @@ def pick_agent(signals: dict, route: str, prompt: str = "") -> str:
 
 
 def agent_info(agent_key: str) -> dict:
-    # Falls back to Sparrow for an unknown key (e.g. a bad force_agent value
-    # from a client). And the returned "id" reflects the *actual* agent
-    # used, not the invalid key that was asked for, so id/name never drift
-    # apart in the API response, the DB log, or the dashboard.
+    # Falls back to Sparrow for an unknown key. Returned "id" reflects the
+    # actual agent used, so it stays consistent across API, DB, and dashboard.
     if agent_key in AGENT_CATALOG:
         return {"id": agent_key, **AGENT_CATALOG[agent_key]}
     return {"id": "sparrow", **AGENT_CATALOG["sparrow"]}

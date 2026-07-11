@@ -1,5 +1,5 @@
 # Routing logic: picks a model tier by prompt complexity, hands it to an
-# agent persona, calls the model, and logs token/cost data. Author: Cryzal & Midhul
+# agent persona, calls the model, and logs token/cost data. Author: Midhul MS (Cryzal)
 from app.agents import agent_info, pick_agent
 from app.complexity import score_with_explanation
 from app.config import settings, price_for, api_for
@@ -56,12 +56,9 @@ def route_request(req: RouteRequest, user_id: int | None = None) -> RouteRespons
         default_model = settings.frontier_model_name if settings.frontier_provider != "mock" else "mock-frontier"
     model_used = req.force_model or default_model
 
-    # One dispatch point for every model: providers.call_model() looks up
-    # which real API model_used belongs to and calls it live if a key is
-    # available (from this request or from .env); otherwise it returns a
-    # clearly-labeled mock reply. This is what makes picking a specific
-    # model in the dashboard (e.g. gpt-4o, claude-sonnet-5) actually run
-    # that model instead of just relabeling a generic mock response.
+    # Single dispatch point: providers.call_model() looks up which API
+    # model_used belongs to and calls it live if a key is available,
+    # otherwise returns a labeled mock reply.
     text, in_tok, out_tok, method, latency_ms = timed_call(
         lambda p, m: call_model(
             p, m,
@@ -71,11 +68,9 @@ def route_request(req: RouteRequest, user_id: int | None = None) -> RouteRespons
         ),
         req.prompt, model_used,
     )
-    # "provider-api-exact" covers OpenAI/Anthropic/Mistral, which report
-    # billed usage directly. Ollama never reports usage (so its method is
-    # tiktoken/whitespace even on a real call). For that one case, treat
-    # anything that isn't one of providers.py's own bracketed
-    # mock/failure/not-configured messages as a genuine live reply.
+    # "provider-api-exact" covers OpenAI/Anthropic/Mistral (billed usage
+    # reported directly). Ollama never reports usage, so treat any reply
+    # that isn't one of providers.py's bracketed mock/error messages as live.
     is_live_call = method == "provider-api-exact" or (
         api_for(model_used) in ("ollama", "huggingface") and not text.startswith("[")
     )

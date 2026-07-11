@@ -1,4 +1,4 @@
-# Author: Cryzal & Midhul
+# Author: Midhul MS (Cryzal)
 # Tells Grafana to load any dashboard JSON found in the mounted folder
 # below on startup, so the router dashboard shows up without any manual
 # import step.

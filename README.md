@@ -289,7 +289,7 @@ for live model calls.
 
 ## Author
 
-Built by **Cryzal & Midhul**.
+Built by **Midhul MS (Cryzal)**.
 
 ## License
 

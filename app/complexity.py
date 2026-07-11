@@ -1,7 +1,7 @@
 """
 Heuristic complexity scorer.
 
-Author: Cryzal & Midhul
+Author: Midhul MS (Cryzal)
 
 This is intentionally transparent and dependency-free so it's easy to explain
 and to swap out later (e.g. for a small trained classifier). It returns a

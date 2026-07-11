@@ -1,12 +1,11 @@
-# Lightweight login + free-usage-quota system. Author: Cryzal & Midhul
+# Lightweight login + free-usage-quota system. Author: Midhul MS (Cryzal)
 #
-# Deliberately dependency-free (uses only stdlib hashlib/secrets) so it adds
-# zero new packages to requirements.txt. Good enough for a portfolio/demo
-# app; if this ever needs to be production-grade for real paying users,
-# swap hash_password()/verify_password() for bcrypt or argon2 and wire
-# mark_paid() up to a real Stripe webhook instead of calling it directly.
+# Uses only stdlib hashlib/secrets, no extra dependencies. For production
+# use, swap hash_password()/verify_password() for bcrypt or argon2 and
+# wire mark_paid() to a real Stripe webhook.
 import hashlib
 import os
+import re
 import secrets
 import sqlite3
 import time
@@ -18,6 +17,8 @@ from fastapi import Header, HTTPException
 from app.config import settings
 
 FREE_USES = 5
+SESSION_EXPIRY_HOURS = 24
+EMAIL_REGEX = re.compile(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
 
 AUTH_SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
@@ -36,6 +37,12 @@ CREATE TABLE IF NOT EXISTS sessions (
 );
 """
 
+# Columns added after the initial release, applied the same way as
+# cost_tracker.py's _MIGRATIONS so an existing auth.db upgrades in place.
+_MIGRATIONS = [
+    ("expires_ts", "ALTER TABLE sessions ADD COLUMN expires_ts REAL NOT NULL DEFAULT 0"),
+]
+
 
 @contextmanager
 def get_conn():
@@ -52,6 +59,10 @@ def get_conn():
 def init_auth_db() -> None:
     with get_conn() as conn:
         conn.executescript(AUTH_SCHEMA)
+        existing_cols = {row[1] for row in conn.execute("PRAGMA table_info(sessions)")}
+        for col, ddl in _MIGRATIONS:
+            if col not in existing_cols:
+                conn.execute(ddl)
         conn.commit()
 
 
@@ -61,6 +72,8 @@ def _hash_password(password: str, salt: str) -> str:
 
 def create_user(email: str, password: str) -> dict:
     email = email.strip().lower()
+    if not EMAIL_REGEX.match(email):
+        raise ValueError("Invalid email format.")
     salt = secrets.token_hex(16)
     password_hash = _hash_password(password, salt)
     with get_conn() as conn:
@@ -104,10 +117,12 @@ def _user_row_to_dict(row) -> dict:
 
 def create_session(user_id: int) -> str:
     token = secrets.token_urlsafe(32)
+    now = time.time()
+    expires_ts = now + (SESSION_EXPIRY_HOURS * 3600)
     with get_conn() as conn:
         conn.execute(
-            "INSERT INTO sessions (token, user_id, created_ts) VALUES (?, ?, ?)",
-            (token, user_id, time.time()),
+            "INSERT INTO sessions (token, user_id, created_ts, expires_ts) VALUES (?, ?, ?, ?)",
+            (token, user_id, now, expires_ts),
         )
         conn.commit()
     return token
@@ -117,8 +132,9 @@ def get_user_by_token(token: str) -> Optional[dict]:
     with get_conn() as conn:
         row = conn.execute(
             "SELECT u.id, u.email, u.free_uses_remaining, u.is_paid "
-            "FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ?",
-            (token,),
+            "FROM sessions s JOIN users u ON u.id = s.user_id "
+            "WHERE s.token = ? AND s.expires_ts > ?",
+            (token, time.time()),
         ).fetchone()
     if row is None:
         return None

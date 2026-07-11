@@ -1,4 +1,4 @@
-# Author: Cryzal & Midhul
+# Author: Midhul MS (Cryzal)
 # Auto-registers Prometheus as a Grafana data source on container start,
 # so opening Grafana for the first time already has something to query
 # instead of an empty "Add data source" screen.

@@ -1,4 +1,4 @@
-# All request/cost persistence (SQLite). Author: Cryzal & Midhul
+# All request/cost persistence (SQLite). Author: Midhul MS (Cryzal)
 import os
 import sqlite3
 import time
@@ -41,10 +41,7 @@ _MIGRATIONS = [
 
 @contextmanager
 def get_conn():
-    # Make sure the parent directory exists (settings.db_path defaults to
-    # "data/cost_router.db" so this lines up with the ./data volume mount
-    # in docker-compose.yml and, on Render, with a persistent disk mounted
-    # at /app/data if one is attached. See render.yaml).
+    # Make sure the parent directory exists before opening the DB.
     db_dir = os.path.dirname(settings.db_path)
     if db_dir:
         os.makedirs(db_dir, exist_ok=True)

@@ -1,6 +1,6 @@
-# Request/response models for the router API. Author: Cryzal & Midhul
+# Request/response models for the router API. Author: Midhul MS (Cryzal)
 from typing import Literal, Optional
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 class RouteRequest(BaseModel):
@@ -13,16 +13,13 @@ class RouteRequest(BaseModel):
     # infer one from the prompt's complexity signals, e.g. "compiler".
     force_agent: Optional[str] = None
 
-    # Optional: bring-your-own-key for this single request, so a model can
-    # be run live from the dashboard without editing .env / restarting the
-    # server. Used only for the outbound API call in app/providers.py --
-    # never logged, never written to the DB, never echoed in the response.
+    # Optional bring-your-own-key for this single request, so a model can
+    # run live from the dashboard without editing .env. Used only for the
+    # outbound call in app/providers.py, never logged or stored.
     anthropic_api_key: Optional[str] = None
     openai_api_key: Optional[str] = None
-    # Free to obtain at https://huggingface.co/settings/tokens. One token
-    # runs every model in MODEL_CATALOG tagged api="huggingface" via HF's
-    # Inference Providers router. Same bring-your-own-key handling as the
-    # two keys above: used only for this one call, never logged or stored.
+    # From https://huggingface.co/settings/tokens; runs any model tagged
+    # api="huggingface" in MODEL_CATALOG.
     hf_api_key: Optional[str] = None
 
 
@@ -62,12 +59,12 @@ class RouteResponse(BaseModel):
 
 
 class SignupRequest(BaseModel):
-    email: str = Field(..., min_length=3)
+    email: EmailStr
     password: str = Field(..., min_length=6)
 
 
 class LoginRequest(BaseModel):
-    email: str
+    email: EmailStr
     password: str
 
 
@@ -89,12 +86,10 @@ class ModelInfo(BaseModel):
     name: str
     tier: Literal["cheap", "mid", "frontier"]
     provider: Literal["gpt", "gemini", "cloud"]
-    # Which backend app/providers.py::call_model() dispatches to for this
-    # model. "anthropic" | "openai" | "mistral" | "gemini" | "huggingface"
-    # | "ollama" | "mock". The dashboard uses this to tell the person which
-    # key field (if any) a given model actually needs, since picking e.g.
-    # "gpt-3.5-turbo" needs an OpenAI key even if a Hugging Face token is
-    # also filled in. Each model only ever calls its own "api".
+    # Backend app/providers.py::call_model() dispatches to for this model
+    # ("anthropic" | "openai" | "mistral" | "gemini" | "huggingface" |
+    # "ollama" | "mock"). Lets the dashboard show which key field a model
+    # actually needs.
     api: str
     input_price_per_1k: float
     output_price_per_1k: float

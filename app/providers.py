@@ -2,7 +2,7 @@
 Thin adapters around each backend so app/router.py never has to know
 whether it's talking to a local Ollama model, a hosted API, or a mock.
 
-Author: Cryzal & Midhul
+Author: Midhul MS (Cryzal)
 
 Every call_* function returns (text, input_tokens, output_tokens, count_method).
 
@@ -211,10 +211,8 @@ def call_huggingface_model(prompt: str, model_name: str | None = None, api_key: 
         out_tok, _ = count_tokens(text)
         return text, in_tok, out_tok, method
     except httpx.HTTPStatusError as exc:
-        # Surface the actual HF error body (bad token, rate limit, model
-        # needs a warm-up, etc.) instead of a generic message, since this
-        # is almost always a token/permission/model-id issue the person
-        # can fix themselves.
+        # Surface the actual HF error body instead of a generic message --
+        # usually a token, rate-limit, or model-id issue that's fixable.
         try:
             detail = exc.response.json().get("error", exc.response.text)
         except Exception:
